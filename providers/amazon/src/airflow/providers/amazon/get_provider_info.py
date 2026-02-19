@@ -493,7 +493,10 @@ def get_provider_info():
             },
             {
                 "integration-name": "Amazon Neptune",
-                "python-modules": ["airflow.providers.amazon.aws.operators.neptune"],
+                "python-modules": [
+                    "airflow.providers.amazon.aws.operators.neptune",
+                    "airflow.providers.amazon.aws.operators.neptune_analytics",
+                ],
             },
         ],
         "sensors": [
@@ -808,7 +811,10 @@ def get_provider_info():
             },
             {
                 "integration-name": "Amazon Neptune",
-                "python-modules": ["airflow.providers.amazon.aws.hooks.neptune"],
+                "python-modules": [
+                    "airflow.providers.amazon.aws.hooks.neptune",
+                    "airflow.providers.amazon.aws.hooks.neptune_analytics",
+                ],
             },
         ],
         "bundles": [
@@ -918,7 +924,10 @@ def get_provider_info():
             },
             {
                 "integration-name": "Amazon Neptune",
-                "python-modules": ["airflow.providers.amazon.aws.triggers.neptune"],
+                "python-modules": [
+                    "airflow.providers.amazon.aws.triggers.neptune",
+                    "airflow.providers.amazon.aws.triggers.neptune_analytics",
+                ],
             },
             {
                 "integration-name": "AWS Database Migration Service",
