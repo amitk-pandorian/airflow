@@ -9486,7 +9486,7 @@ class TestDispatchConnectionTests:
         session.commit()
         assert ct.state == ConnectionTestState.PENDING
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
@@ -9510,7 +9510,7 @@ class TestDispatchConnectionTests:
         session.add(ct_pending)
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct_pending = session.get(ConnectionTest, ct_pending.id)
@@ -9536,7 +9536,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
@@ -9559,7 +9559,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
@@ -9589,7 +9589,7 @@ class TestDispatchConnectionTests:
         session.commit()
         pending_ids = [ct.id for ct in pending_tests]
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         states = [session.get(ConnectionTest, pid).state for pid in pending_ids]
@@ -9624,7 +9624,7 @@ class TestDispatchConnectionTests:
 
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         assert session.get(ConnectionTest, ct_old.id).state == ConnectionTestState.QUEUED
@@ -9651,7 +9651,7 @@ class TestDispatchConnectionTests:
             session.add(ct)
             session.commit()
 
-            scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+            scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
@@ -9692,7 +9692,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        runner._dispatch_connection_tests(session=session)
+        runner._enqueue_connection_tests(session=session)
 
         assert len(executor_b.queued_connection_tests) == 1
         assert len(executor_a.queued_connection_tests) == 0
@@ -9731,7 +9731,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        runner._dispatch_connection_tests(session=session)
+        runner._enqueue_connection_tests(session=session)
 
         assert len(executor_b.queued_connection_tests) == 1
         assert len(executor_a.queued_connection_tests) == 0
@@ -9763,7 +9763,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        runner._dispatch_connection_tests(session=session)
+        runner._enqueue_connection_tests(session=session)
 
         assert len(executor_b.queued_connection_tests) == 1
         assert len(executor_a.queued_connection_tests) == 0
@@ -9786,7 +9786,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
@@ -9810,7 +9810,7 @@ class TestDispatchConnectionTests:
         session.add(ct)
         session.commit()
 
-        scheduler_job_runner_for_connection_tests._dispatch_connection_tests(session=session)
+        scheduler_job_runner_for_connection_tests._enqueue_connection_tests(session=session)
 
         session.expire_all()
         ct = session.get(ConnectionTest, ct.id)
