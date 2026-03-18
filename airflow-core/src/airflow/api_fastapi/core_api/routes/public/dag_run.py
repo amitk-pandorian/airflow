@@ -83,7 +83,7 @@ from airflow.api_fastapi.core_api.security import (
     requires_access_asset,
     requires_access_dag,
 )
-from airflow.api_fastapi.core_api.services.public.dag_run import DagRunWaiter
+from airflow.api_fastapi.core_api.services.public.dag_run import DagRunWaiter, resolve_run_on_latest_version
 from airflow.api_fastapi.logging.decorators import action_logging
 from airflow.listeners.listener import get_listener_manager
 from airflow.models import DagModel, DagRun
@@ -296,6 +296,8 @@ def clear_dag_run(
 
     dag = dag_bag.get_dag_for_run(dag_run, session=session)
 
+    resolved_run_on_latest = resolve_run_on_latest_version(body.run_on_latest_version, dag_id, session)
+
     if body.dry_run:
         if not dag:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"Dag with id {dag_id} was not found")
@@ -303,7 +305,7 @@ def clear_dag_run(
             run_id=dag_run_id,
             task_ids=None,
             only_failed=body.only_failed,
-            run_on_latest_version=body.run_on_latest_version,
+            run_on_latest_version=resolved_run_on_latest,
             dry_run=True,
             session=session,
         )
@@ -318,7 +320,7 @@ def clear_dag_run(
         run_id=dag_run_id,
         task_ids=None,
         only_failed=body.only_failed,
-        run_on_latest_version=body.run_on_latest_version,
+        run_on_latest_version=resolved_run_on_latest,
         session=session,
     )
     dag_run_cleared = session.scalar(select(DagRun).where(DagRun.id == dag_run.id))
