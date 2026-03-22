@@ -2121,7 +2121,12 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     dag_run.run_id,
                     len(asset_events),
                 )
-
+            else:
+                self.log.warning(
+                    "No DagRun created for '%s' at '%s' - asset events already consumed",
+                    dag.dag_id,
+                    triggered_date,
+                )
             # Delete only consumed ADRQ rows to avoid dropping newly queued events
             # (e.g. 1. DagRun triggered by asset A while a new event for asset B arrives.
             # 2. DagRun triggered by asset A while new event for asset A upsert to ADRQ)
