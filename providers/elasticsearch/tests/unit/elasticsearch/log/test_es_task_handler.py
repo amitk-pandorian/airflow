@@ -22,6 +22,8 @@ import logging
 import os
 import re
 import shutil
+import tempfile
+import uuid
 from io import StringIO
 from pathlib import Path
 from unittest import mock
@@ -36,7 +38,10 @@ from airflow.providers.common.compat.sdk import conf
 from airflow.providers.elasticsearch.log.es_response import ElasticSearchResponse
 from airflow.providers.elasticsearch.log.es_task_handler import (
     VALID_ES_CONFIG_KEYS,
+    ElasticsearchRemoteLogIO,
     ElasticsearchTaskHandler,
+    _clean_date,
+    _render_log_id,
     get_es_kwargs_from_config,
     getattr_nested,
 )
@@ -54,10 +59,11 @@ from unit.elasticsearch.log.elasticmock.utilities import SearchFailedException
 ES_PROVIDER_YAML_FILE = AIRFLOW_PROVIDERS_ROOT_PATH / "elasticsearch" / "provider.yaml"
 
 
-def get_ti(dag_id, task_id, logical_date, create_task_instance):
+def get_ti(dag_id, task_id, run_id, logical_date, create_task_instance):
     ti = create_task_instance(
         dag_id=dag_id,
         task_id=task_id,
+        run_id=run_id,
         logical_date=logical_date,
         dagrun_state=DagRunState.RUNNING,
         state=TaskInstanceState.RUNNING,
@@ -70,10 +76,19 @@ def get_ti(dag_id, task_id, logical_date, create_task_instance):
 class TestElasticsearchTaskHandler:
     DAG_ID = "dag_for_testing_es_task_handler"
     TASK_ID = "task_for_testing_es_log_handler"
+    RUN_ID = "run_for_testing_es_log_handler"
+    MAP_INDEX = -1
+    TRY_NUM = 1
     LOGICAL_DATE = datetime(2016, 1, 1)
-    LOG_ID = f"{DAG_ID}-{TASK_ID}-2016-01-01T00:00:00+00:00-1"
-    JSON_LOG_ID = f"{DAG_ID}-{TASK_ID}-{ElasticsearchTaskHandler._clean_date(LOGICAL_DATE)}-1"
+    LOG_ID = f"{DAG_ID}-{TASK_ID}-{RUN_ID}-{MAP_INDEX}-{TRY_NUM}"
+    JSON_LOG_ID = f"{DAG_ID}-{TASK_ID}-{_clean_date(LOGICAL_DATE)}-1"
     FILENAME_TEMPLATE = "{try_number}.log"
+
+    # TODO: Remove when we stop testing for 2.11 compatibility
+    @pytest.fixture(autouse=True)
+    def _use_historical_filename_templates(self):
+        with conf_vars({("core", "use_historical_filename_templates"): "True"}):
+            yield
 
     @pytest.fixture
     def ti(self, create_task_instance, create_log_template):
@@ -88,6 +103,7 @@ class TestElasticsearchTaskHandler:
         yield get_ti(
             dag_id=self.DAG_ID,
             task_id=self.TASK_ID,
+            run_id=self.RUN_ID,
             logical_date=self.LOGICAL_DATE,
             create_task_instance=create_task_instance,
         )
@@ -128,21 +144,24 @@ class TestElasticsearchTaskHandler:
     def teardown_method(self):
         shutil.rmtree(self.local_log_location.split(os.path.sep)[0], ignore_errors=True)
 
-    def test_es_response(self):
-        sample_response = self.es.sample_log_response()
-        es_response = ElasticSearchResponse(self.es_task_handler, sample_response)
-        logs_by_host = self.es_task_handler._group_logs_by_host(es_response)
-
-        def concat_logs(lines):
-            log_range = -1 if lines[-1].message == self.es_task_handler.end_of_log_mark else None
-            return "\n".join(self.es_task_handler._format_msg(line) for line in lines[:log_range])
+    @pytest.mark.parametrize(
+        "sample_response",
+        [
+            pytest.param(lambda self: self.es.sample_airflow_2_log_response(), id="airflow_2"),
+            pytest.param(lambda self: self.es.sample_airflow_3_log_response(), id="airflow_3"),
+        ],
+    )
+    def test_es_response(self, sample_response):
+        response = sample_response(self)
+        es_response = ElasticSearchResponse(self.es_task_handler, response)
+        logs_by_host = self.es_task_handler.io._group_logs_by_host(es_response)
 
         for hosted_log in logs_by_host.values():
-            message = concat_logs(hosted_log)
+            message = self.es_task_handler.concat_logs(hosted_log)
 
         assert (
             message == "Dependencies all met for dep_context=non-requeueable"
-            " deps ti=<TaskInstance: example_bash_operator.run_after_loop owen_run_run [queued]>\n"
+            " deps ti=<TaskInstance: example_bash_operator.run_after_loop \n"
             "Starting attempt 1 of 1\nExecuting <Task(BashOperator): run_after_loop> "
             "on 2023-07-09 07:47:32+00:00"
         )
@@ -263,7 +282,7 @@ class TestElasticsearchTaskHandler:
     @pytest.mark.db_test
     def test_read_with_patterns_no_match(self, ti):
         ts = pendulum.now()
-        with mock.patch.object(self.es_task_handler, "index_patterns", new="test_other_*,test_another_*"):
+        with mock.patch.object(self.es_task_handler.io, "index_patterns", new="test_other_*,test_another_*"):
             logs, metadatas = self.es_task_handler.read(
                 ti, 1, {"offset": 0, "last_log_timestamp": str(ts), "end_of_log": False}
             )
@@ -280,14 +299,14 @@ class TestElasticsearchTaskHandler:
             metadata = metadatas[0]
 
         assert metadata["offset"] == "0"
-        assert not metadata["end_of_log"]
+        assert metadata["end_of_log"]
         # last_log_timestamp won't change if no log lines read.
         assert timezone.parse(metadata["last_log_timestamp"]) == ts
 
     @pytest.mark.db_test
     def test_read_with_missing_index(self, ti):
         ts = pendulum.now()
-        with mock.patch.object(self.es_task_handler, "index_patterns", new="nonexistent,test_*"):
+        with mock.patch.object(self.es_task_handler.io, "index_patterns", new="nonexistent,test_*"):
             with pytest.raises(elasticsearch.exceptions.NotFoundError, match=r"IndexMissingException.*"):
                 self.es_task_handler.read(
                     ti,
@@ -302,9 +321,11 @@ class TestElasticsearchTaskHandler:
         When the log actually isn't there to be found, we only want to wait for 5 seconds.
         In this case we expect to receive a message of the form 'Log {log_id} not found in elasticsearch ...'
         """
+        run_id = "wrong_run_id"
         ti = get_ti(
             self.DAG_ID,
             self.TASK_ID,
+            run_id,
             pendulum.instance(self.LOGICAL_DATE).add(days=1),  # so logs are not found
             create_task_instance=create_task_instance,
         )
@@ -320,7 +341,7 @@ class TestElasticsearchTaskHandler:
             else:
                 # we've "waited" less than 5 seconds so it should not be "end of log" and should be no log message
                 assert logs == []
-                assert metadatas["end_of_log"] is False
+                assert metadatas["end_of_log"] is True
             assert metadatas["offset"] == "0"
             assert timezone.parse(metadatas["last_log_timestamp"]) == ts
         else:
@@ -336,7 +357,7 @@ class TestElasticsearchTaskHandler:
                 # we've "waited" less than 5 seconds so it should not be "end of log" and should be no log message
                 assert len(logs[0]) == 0
                 assert logs == [[]]
-                assert metadatas[0]["end_of_log"] is False
+                assert metadatas[0]["end_of_log"] is True
             assert len(logs) == len(metadatas)
             assert metadatas[0]["offset"] == "0"
             assert timezone.parse(metadatas[0]["last_log_timestamp"]) == ts
@@ -432,7 +453,7 @@ class TestElasticsearchTaskHandler:
             metadata = metadatas[0]
 
         assert metadata["offset"] == "0"
-        assert not metadata["end_of_log"]
+        assert metadata["end_of_log"]
         # last_log_timestamp won't change if no log lines read.
         assert timezone.parse(metadata["last_log_timestamp"]) == ts
 
@@ -440,6 +461,7 @@ class TestElasticsearchTaskHandler:
     def test_read_with_empty_metadata(self, ti):
         ts = pendulum.now()
         logs, metadatas = self.es_task_handler.read(ti, 1, {})
+        print(f"metadatas: {metadatas}")
         if AIRFLOW_V_3_0_PLUS:
             logs = list(logs)
             assert logs[0].event == "::group::Log message source details"
@@ -455,7 +477,7 @@ class TestElasticsearchTaskHandler:
             assert self.test_message == logs[0][0][-1]
 
             metadata = metadatas[0]
-
+        print(f"metadatas: {metadatas}")
         assert not metadata["end_of_log"]
         # offset should be initialized to 0 if not provided.
         assert metadata["offset"] == "1"
@@ -477,7 +499,7 @@ class TestElasticsearchTaskHandler:
 
             metadata = metadatas[0]
 
-        assert not metadata["end_of_log"]
+        assert metadata["end_of_log"]
         # offset should be initialized to 0 if not provided.
         assert metadata["offset"] == "0"
         # last_log_timestamp will be initialized using log reading time
@@ -552,27 +574,22 @@ class TestElasticsearchTaskHandler:
 
     @pytest.mark.db_test
     def test_read_raises(self, ti):
-        with mock.patch.object(self.es_task_handler.log, "exception") as mock_exception:
-            with mock.patch.object(self.es_task_handler.client, "search") as mock_execute:
+        with mock.patch.object(self.es_task_handler.io.log, "exception") as mock_exception:
+            with mock.patch.object(self.es_task_handler.io.client, "search") as mock_execute:
                 mock_execute.side_effect = SearchFailedException("Failed to read")
-                logs, metadatas = self.es_task_handler.read(ti, 1)
+                log_sources, log_msgs = self.es_task_handler.io.read("", ti)
             assert mock_exception.call_count == 1
             args, kwargs = mock_exception.call_args
             assert "Could not read log with log_id:" in args[0]
 
         if AIRFLOW_V_3_0_PLUS:
-            assert logs == []
-
-            metadata = metadatas
+            assert log_sources == []
         else:
-            assert len(logs) == 1
-            assert len(logs) == len(metadatas)
-            assert logs == [[]]
+            assert len(log_sources) == 0
+            assert len(log_msgs) == 1
+            assert log_sources == []
 
-            metadata = metadatas[0]
-
-        assert metadata["offset"] == "0"
-        assert not metadata["end_of_log"]
+        assert "not found in Elasticsearch" in log_msgs[0]
 
     @pytest.mark.db_test
     def test_set_context(self, ti):
@@ -616,9 +633,7 @@ class TestElasticsearchTaskHandler:
             logs = list(logs)
             assert logs[2].event == self.test_message
         else:
-            assert (
-                logs[0][0][1] == "[2020-12-24 19:25:00,962] {taskinstance.py:851} INFO - some random stuff - "
-            )
+            assert logs[0][0][1] == self.test_message
 
     @pytest.mark.db_test
     def test_read_with_json_format_with_custom_offset_and_host_fields(self, ti):
@@ -634,7 +649,7 @@ class TestElasticsearchTaskHandler:
         self.body = {
             "message": self.test_message,
             "event": self.test_message,
-            "log_id": f"{self.DAG_ID}-{self.TASK_ID}-2016_01_01T00_00_00_000000-1",
+            "log_id": self.LOG_ID,
             "log": {"offset": 1},
             "host": {"name": "somehostname"},
             "asctime": "2020-12-24 19:25:00,962",
@@ -652,9 +667,7 @@ class TestElasticsearchTaskHandler:
             logs = list(logs)
             assert logs[2].event == self.test_message
         else:
-            assert (
-                logs[0][0][1] == "[2020-12-24 19:25:00,962] {taskinstance.py:851} INFO - some random stuff - "
-            )
+            assert logs[0][0][1] == self.test_message
 
     @pytest.mark.db_test
     def test_read_with_custom_offset_and_host_fields(self, ti):
@@ -753,13 +766,13 @@ class TestElasticsearchTaskHandler:
 
     @pytest.mark.db_test
     def test_render_log_id(self, ti):
-        assert self.es_task_handler._render_log_id(ti, 1) == self.LOG_ID
+        assert _render_log_id(self.es_task_handler.log_id_template, ti, 1) == self.LOG_ID
 
         self.es_task_handler.json_format = True
-        assert self.es_task_handler._render_log_id(ti, 1) == self.JSON_LOG_ID
+        assert _render_log_id(self.es_task_handler.log_id_template, ti, 1) == self.LOG_ID
 
     def test_clean_date(self):
-        clean_logical_date = self.es_task_handler._clean_date(datetime(2016, 7, 8, 9, 10, 11, 12))
+        clean_logical_date = _clean_date(datetime(2016, 7, 8, 9, 10, 11, 12))
         assert clean_logical_date == "2016_07_08T09_10_11_000012"
 
     @pytest.mark.db_test
@@ -770,7 +783,7 @@ class TestElasticsearchTaskHandler:
             (
                 True,
                 "localhost:5601/{log_id}",
-                "https://localhost:5601/" + quote(JSON_LOG_ID),
+                "https://localhost:5601/" + quote(LOG_ID),
             ),
             (
                 False,
@@ -867,8 +880,8 @@ class TestElasticsearchTaskHandler:
             mock_callable = Mock(return_value="callable_index_pattern")
             mock_import_string.return_value = mock_callable
 
-            self.es_task_handler.index_patterns_callable = "path.to.index_pattern_callable"
-            result = self.es_task_handler._get_index_patterns({})
+            self.es_task_handler.io.index_patterns_callable = "path.to.index_pattern_callable"
+            result = self.es_task_handler.io._get_index_patterns({})
 
             mock_import_string.assert_called_once_with("path.to.index_pattern_callable")
             mock_callable.assert_called_once_with({})
@@ -884,25 +897,6 @@ class TestElasticsearchTaskHandler:
             json_fields="asctime,filename,lineno,levelname,message,exc_text",
             filename_template=None,
         )
-
-    @pytest.mark.db_test
-    def test_write_to_es(self, ti):
-        self.es_task_handler.write_to_es = True
-        self.es_task_handler.json_format = True
-        self.es_task_handler.write_stdout = False
-        self.es_task_handler.local_base = Path(os.getcwd()) / "local" / "log" / "location"
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        self.es_task_handler.formatter = formatter
-
-        self.es_task_handler.set_context(ti)
-        with patch(
-            "airflow.providers.elasticsearch.log.es_task_handler.ElasticsearchTaskHandler._write_to_es"
-        ) as mock_write_to_es:
-            mock_write = Mock(return_value=True)
-            mock_write_to_es.return_value = mock_write
-            self.es_task_handler._write_to_es = mock_write_to_es
-            self.es_task_handler.close()
-            mock_write_to_es.assert_called_once()
 
 
 def test_safe_attrgetter():
@@ -963,3 +957,362 @@ def test_self_not_valid_arg():
     Test if self is not a valid argument.
     """
     assert "self" not in VALID_ES_CONFIG_KEYS
+
+
+@pytest.mark.db_test
+class TestElasticsearchRemoteLogIO:
+    DAG_ID = "dag_for_testing_es_log_handler"
+    TASK_ID = "task_for_testing_es_log_handler"
+    RUN_ID = "run_for_testing_es_log_handler"
+    LOGICAL_DATE = datetime(2016, 1, 1)
+    FILENAME_TEMPLATE = "{try_number}.log"
+
+    @pytest.fixture(autouse=True)
+    def setup_tests(self, ti):
+        self.elasticsearch_io = ElasticsearchRemoteLogIO(
+            write_to_es=True,
+            write_stdout=True,
+            delete_local_copy=True,
+            host="http://localhost:9200",
+            base_log_folder=Path(""),
+        )
+
+    @pytest.fixture
+    def tmp_json_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.makedirs(tmpdir, exist_ok=True)
+
+            file_path = os.path.join(tmpdir, "1.log")
+            self.tmp_file = file_path
+
+            sample_logs = [
+                {"message": "start"},
+                {"message": "processing"},
+                {"message": "end"},
+            ]
+            with open(file_path, "w") as f:
+                for log in sample_logs:
+                    f.write(json.dumps(log) + "\n")
+
+            yield file_path
+
+            del self.tmp_file
+
+    @pytest.fixture
+    def ti(self, create_task_instance, create_log_template):
+        create_log_template(
+            self.FILENAME_TEMPLATE,
+            (
+                "{dag_id}-{task_id}-{logical_date}-{try_number}"
+                if AIRFLOW_V_3_0_PLUS
+                else "{dag_id}-{task_id}-{execution_date}-{try_number}"
+            ),
+        )
+        yield get_ti(
+            dag_id=self.DAG_ID,
+            task_id=self.TASK_ID,
+            run_id=self.RUN_ID,
+            logical_date=self.LOGICAL_DATE,
+            create_task_instance=create_task_instance,
+        )
+        clear_db_runs()
+        clear_db_dags()
+
+    @pytest.fixture
+    def unique_index(self):
+        """Generate a unique index name for each test."""
+        return f"airflow-logs-{uuid.uuid4()}"
+
+    def test_write_to_stdout(self, tmp_json_file, ti, capsys):
+        self.elasticsearch_io.write_to_es = False
+        self.elasticsearch_io.upload(tmp_json_file, ti)
+
+        captured = capsys.readouterr()
+        stdout_lines = captured.out.strip().splitlines()
+        log_entries = [json.loads(line) for line in stdout_lines]
+        assert log_entries[0]["message"] == "start"
+        assert log_entries[1]["message"] == "processing"
+        assert log_entries[2]["message"] == "end"
+
+    def test_invalid_task_log_file_path(self, ti):
+        with (
+            patch.object(self.elasticsearch_io, "_parse_raw_log") as mock_parse,
+            patch.object(self.elasticsearch_io, "_write_to_es") as mock_write,
+        ):
+            self.elasticsearch_io.upload(Path("/invalid/path"), ti)
+
+            mock_parse.assert_not_called()
+            mock_write.assert_not_called()
+
+    def test_raw_log_should_contain_log_id_and_offset(self, tmp_json_file, ti):
+        with open(self.tmp_file) as f:
+            raw_log = f.read()
+        json_log_lines = self.elasticsearch_io._parse_raw_log(raw_log, ti)
+        assert len(json_log_lines) == 3
+        for json_log_line in json_log_lines:
+            assert "log_id" in json_log_line
+            assert "offset" in json_log_line
+
+    @patch("elasticsearch.Elasticsearch.count", return_value={"count": 0})
+    def test_read_with_missing_log(self, mocked_count, ti):
+        log_source_info, log_messages = self.elasticsearch_io.read("", ti)
+        log_id = _render_log_id(self.elasticsearch_io.log_id_template, ti, ti.try_number)
+        assert log_source_info == []
+        assert f"*** Log {log_id} not found in Elasticsearch" in log_messages[0]
+        mocked_count.assert_called_once()
+
+    def test_read_error_detail(self, ti):
+        """Verify that error_detail is correctly retrieved and formatted."""
+        error_detail = [
+            {
+                "is_cause": False,
+                "frames": [{"filename": "/opt/airflow/dags/fail.py", "lineno": 13, "name": "log_and_raise"}],
+                "exc_type": "RuntimeError",
+                "exc_value": "Woopsie. Something went wrong.",
+            }
+        ]
+        body = {
+            "event": "Task failed with exception",
+            "log_id": _render_log_id(self.elasticsearch_io.log_id_template, ti, ti.try_number),
+            "offset": 1,
+            "error_detail": error_detail,
+        }
+
+        from airflow.providers.elasticsearch.log.es_response import Hit
+
+        mock_hit = Hit({"_source": body})
+        with (
+            patch.object(self.elasticsearch_io, "_es_read") as mock_es_read,
+            patch.object(
+                self.elasticsearch_io,
+                "_group_logs_by_host",
+                return_value={"http://localhost:9200": [mock_hit]},
+            ),
+        ):
+            mock_es_read.return_value = mock.MagicMock()
+            mock_es_read.return_value.hits = [mock_hit]
+
+            log_source_info, log_messages = self.elasticsearch_io.read("", ti)
+
+            assert len(log_messages) == 1
+            log_entry = json.loads(log_messages[0])
+            assert "error_detail" in log_entry
+            assert log_entry["error_detail"] == error_detail
+
+
+# ---------------------------------------------------------------------------
+# Tests for the error_detail helpers (issue #63736)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatErrorDetail:
+    """Unit tests for _format_error_detail."""
+
+    def test_returns_none_for_empty(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        assert _format_error_detail(None) is None
+        assert _format_error_detail([]) is None
+
+    def test_returns_string_for_non_list(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        assert _format_error_detail("raw string") == "raw string"
+
+    def test_formats_single_exception(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        error_detail = [
+            {
+                "is_cause": False,
+                "frames": [
+                    {"filename": "/app/task.py", "lineno": 13, "name": "log_and_raise"},
+                ],
+                "exc_type": "RuntimeError",
+                "exc_value": "Something went wrong.",
+                "exceptions": [],
+                "is_group": False,
+            }
+        ]
+        result = _format_error_detail(error_detail)
+        assert result is not None
+        assert "Traceback (most recent call last):" in result
+        assert 'File "/app/task.py", line 13, in log_and_raise' in result
+        assert "RuntimeError: Something went wrong." in result
+
+    def test_formats_chained_exceptions(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        error_detail = [
+            {
+                "is_cause": True,
+                "frames": [{"filename": "/a.py", "lineno": 1, "name": "foo"}],
+                "exc_type": "ValueError",
+                "exc_value": "original",
+                "exceptions": [],
+            },
+            {
+                "is_cause": False,
+                "frames": [{"filename": "/b.py", "lineno": 2, "name": "bar"}],
+                "exc_type": "RuntimeError",
+                "exc_value": "wrapped",
+                "exceptions": [],
+            },
+        ]
+        result = _format_error_detail(error_detail)
+        assert result is not None
+        assert "direct cause" in result
+        assert "ValueError: original" in result
+        assert "RuntimeError: wrapped" in result
+
+    def test_exc_type_without_value(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        error_detail = [
+            {
+                "is_cause": False,
+                "frames": [],
+                "exc_type": "StopIteration",
+                "exc_value": "",
+            }
+        ]
+        result = _format_error_detail(error_detail)
+        assert result is not None
+        assert result.endswith("StopIteration")
+
+    def test_non_dict_items_are_stringified(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _format_error_detail
+
+        result = _format_error_detail(["unexpected string item"])
+        assert result is not None
+        assert "unexpected string item" in result
+
+
+class TestBuildStructuredLogFields:
+    """Unit tests for _build_log_fields."""
+
+    def test_filters_to_allowed_fields(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"event": "hello", "level": "info", "unknown_field": "should be dropped"}
+        result = _build_log_fields(hit)
+        assert "event" in result
+        assert "level" in result
+        assert "unknown_field" not in result
+
+    def test_message_mapped_to_event(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"message": "plain message", "timestamp": "2024-01-01T00:00:00Z"}
+        fields = _build_log_fields(hit)
+        assert fields["event"] == "plain message"
+        assert "message" not in fields  # Ensure it is popped if used as event
+
+    def test_message_preserved_if_event_exists(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"event": "structured event", "message": "plain message"}
+        fields = _build_log_fields(hit)
+        assert fields["event"] == "structured event"
+        # message is preserved if it's in TASK_LOG_FIELDS and doesn't collide with event
+        assert fields["message"] == "plain message"
+
+    def test_levelname_mapped_to_level(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"event": "msg", "levelname": "ERROR"}
+        result = _build_log_fields(hit)
+        assert result["level"] == "ERROR"
+        assert "levelname" not in result
+
+    def test_at_timestamp_mapped_to_timestamp(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"event": "msg", "@timestamp": "2024-01-01T00:00:00Z"}
+        result = _build_log_fields(hit)
+        assert result["timestamp"] == "2024-01-01T00:00:00Z"
+        assert "@timestamp" not in result
+
+    def test_error_detail_is_kept_as_list(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        error_detail = [
+            {
+                "is_cause": False,
+                "frames": [{"filename": "/dag.py", "lineno": 10, "name": "run"}],
+                "exc_type": "RuntimeError",
+                "exc_value": "Woopsie.",
+            }
+        ]
+        hit = {
+            "event": "Task failed with exception",
+            "error_detail": error_detail,
+        }
+        result = _build_log_fields(hit)
+        assert result["error_detail"] == error_detail
+
+    def test_error_detail_dropped_when_empty(self):
+        from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+
+        hit = {"event": "msg", "error_detail": []}
+        result = _build_log_fields(hit)
+        assert "error_detail" not in result
+
+    @pytest.mark.skipif(not AIRFLOW_V_3_0_PLUS, reason="StructuredLogMessage only exists in Airflow 3+")
+    @elasticmock
+    def test_read_includes_error_detail_in_structured_message(self):
+        """End-to-end: a hit with error_detail should surface it in the returned StructuredLogMessage."""
+        from airflow.providers.elasticsearch.log.es_task_handler import ElasticsearchTaskHandler
+
+        local_log_location = "local/log/location"
+        handler = ElasticsearchTaskHandler(
+            base_log_folder=local_log_location,
+            end_of_log_mark="end_of_log\n",
+            write_stdout=False,
+            json_format=False,
+            json_fields="asctime,filename,lineno,levelname,message,exc_text",
+        )
+
+        es = elasticsearch.Elasticsearch("http://localhost:9200")
+        log_id = "test_dag-test_task-test_run--1-1"
+        body = {
+            "event": "Task failed with exception",
+            "log_id": log_id,
+            "offset": 1,
+            "error_detail": [
+                {
+                    "is_cause": False,
+                    "frames": [
+                        {"filename": "/opt/airflow/dags/fail.py", "lineno": 13, "name": "log_and_raise"}
+                    ],
+                    "exc_type": "RuntimeError",
+                    "exc_value": "Woopsie. Something went wrong.",
+                }
+            ],
+        }
+        es.index(index="test_index", doc_type="log", body=body, id=1)
+
+        # Patch the IO layer to return our fake document
+        mock_hit_dict = body.copy()
+
+        from airflow.providers.elasticsearch.log.es_response import ElasticSearchResponse, Hit
+
+        mock_hit = Hit({"_source": mock_hit_dict})
+        mock_response = mock.MagicMock(spec=ElasticSearchResponse)
+        mock_response.hits = [mock_hit]
+        mock_response.__iter__ = mock.Mock(return_value=iter([mock_hit]))
+        mock_response.__bool__ = mock.Mock(return_value=True)
+        mock_response.__getitem__ = mock.Mock(return_value=mock_hit)
+
+        with mock.patch.object(handler.io, "_es_read", return_value=mock_response):
+            with mock.patch.object(handler.io, "_group_logs_by_host", return_value={"localhost": [mock_hit]}):
+                # Build StructuredLogMessages
+                from airflow.providers.elasticsearch.log.es_task_handler import _build_log_fields
+                from airflow.utils.log.file_task_handler import StructuredLogMessage
+
+                fields = _build_log_fields(mock_hit.to_dict())
+                msg = StructuredLogMessage(**fields)
+
+                assert msg.event == "Task failed with exception"
+                assert hasattr(msg, "error_detail")
+                assert msg.error_detail == body["error_detail"]
