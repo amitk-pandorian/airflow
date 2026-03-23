@@ -246,4 +246,3 @@ class TestIBMMQHook:
         stop_event = threading.Event()
         with pytest.raises(TypeError, match="Unexpected programming bug"):
             self.hook._consume_sync("QUEUE1", 0.1, stop_event)
-
