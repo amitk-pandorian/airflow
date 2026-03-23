@@ -77,7 +77,7 @@ export class ConnectionsPage extends BasePage {
     this.saveButton = page.getByRole("button", { name: /^save$/i });
 
     // Form inputs (Chakra UI inputs)
-    this.connectionForm = page.locator('[data-scope="dialog"][data-part="content"]');
+    this.connectionForm = page.getByRole("dialog");
     this.connectionIdInput = page.locator('input[name="connection_id"]').first();
     this.connectionTypeSelect = page.getByRole("combobox").first();
     this.hostInput = page.locator('input[name="host"]').first();
@@ -118,11 +118,11 @@ export class ConnectionsPage extends BasePage {
 
   // Click edit button for a specific connection
   public async clickEditButton(connectionId: string): Promise<void> {
-    // Wait for any stale dialog backdrop to clear before interacting
-    const backdrop = this.page.locator('[data-scope="dialog"][data-part="backdrop"]');
+    // Wait for any stale dialog to close before interacting
+    const staleDialog = this.page.getByRole("dialog");
 
-    if (await backdrop.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await backdrop.waitFor({ state: "detached", timeout: 5000 });
+    if (await staleDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await staleDialog.waitFor({ state: "detached", timeout: 5000 });
     }
 
     const row = await this.findConnectionRow(connectionId);
@@ -172,8 +172,8 @@ export class ConnectionsPage extends BasePage {
   public async editConnection(connectionId: string, updates: Partial<ConnectionDetails>): Promise<void> {
     await this.clickEditButton(connectionId);
 
-    // Wait for form to load
-    await expect(this.connectionIdInput).toBeVisible({ timeout: 10_000 });
+    // Wait for form to be fully populated with existing connection data before interacting
+    await expect(this.connectionIdInput).toHaveValue(connectionId, { timeout: 10_000 });
 
     // Fill the fields that need updating
     await this.fillConnectionForm(updates);
@@ -190,8 +190,7 @@ export class ConnectionsPage extends BasePage {
       // Click the select field to open the dropdown
       const selectCombobox = this.page.getByRole("combobox").first();
 
-      await expect(selectCombobox).toBeEnabled({ timeout: 25_000 });
-
+      await expect(selectCombobox).toBeEnabled({ timeout: 10_000 });
       await selectCombobox.click();
 
       // Wait for options to appear and click the matching option
@@ -362,11 +361,12 @@ export class ConnectionsPage extends BasePage {
     if (searchTerm === "") {
       await expect(this.connectionRows.first().or(this.emptyState)).toBeVisible({ timeout: 10_000 });
     } else {
-      const nonMatchingRow = this.page.locator("tbody tr").filter({ hasNotText: searchTerm });
+      // Wait for a matching row or the empty state to appear — this directly checks
+      // what the user sees and avoids a race where an empty loading state satisfies
+      // "no non-matching rows" before results arrive.
+      const matchingRow = this.page.locator("tbody tr").filter({ hasText: searchTerm });
 
-      await expect(nonMatchingRow).toHaveCount(0, { timeout: 10_000 });
-
-      await expect(this.connectionRows.first()).toBeVisible();
+      await expect(matchingRow.first().or(this.emptyState)).toBeVisible({ timeout: 10_000 });
     }
   }
 
@@ -406,9 +406,10 @@ export class ConnectionsPage extends BasePage {
 
     const row = this.page.locator("tbody tr").filter({ hasText: connectionId }).first();
 
-    const rowExists = await row.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (!rowExists) {
+    // Use web-first assertion (toBeVisible) rather than manual isVisible() check
+    try {
+      await expect(row).toBeVisible({ timeout: 10_000 });
+    } catch {
       return null;
     }
 
