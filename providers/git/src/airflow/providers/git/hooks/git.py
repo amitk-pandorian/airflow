@@ -77,6 +77,7 @@ class GitHook(BaseHook):
         if self.key_file and self.private_key:
             raise AirflowException("Both 'key_file' and 'private_key' cannot be provided at the same time")
         self._process_git_auth_url()
+        self._setup_askpass()
 
     def _build_ssh_command(self, key_path: str) -> str:
         return (
@@ -84,19 +85,41 @@ class GitHook(BaseHook):
             f"-o IdentitiesOnly=yes "
             f"-o StrictHostKeyChecking={self.strict_host_key_checking}"
         )
-
+    
     def _process_git_auth_url(self):
         if not isinstance(self.repo_url, str):
             return
-        if self.auth_token and self.repo_url.startswith("https://"):
-            self.repo_url = self.repo_url.replace("https://", f"https://{self.user_name}:{self.auth_token}@")
-        elif self.auth_token and self.repo_url.startswith("http://"):
-            self.repo_url = self.repo_url.replace("http://", f"http://{self.user_name}:{self.auth_token}@")
-        elif self.repo_url.startswith("http://"):
-            # if no auth token, use the repo url as is
-            self.repo_url = self.repo_url
-        elif not self.repo_url.startswith("git@") or not self.repo_url.startswith("https://"):
+
+        if self.repo_url.startswith(("http://", "https://")):
+            if self.auth_token:
+                log.info(
+                    "Using token-based authentication via GIT_ASKPASS. "
+                    "Credentials are not embedded in the repository URL."
+                )
+            return
+
+        if not self.repo_url.startswith("git@"):
             self.repo_url = os.path.expanduser(self.repo_url)
+
+    def _setup_askpass(self):
+        if not self.auth_token:
+            return
+
+        script = f"""#!/bin/sh
+case "$1" in
+Username*) echo "{self.user_name}" ;;
+Password*) echo "{self.auth_token}" ;;
+esac
+"""
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, mode="w")
+        tmp.write(script)
+        tmp.flush()
+        os.chmod(tmp.name, 0o700)
+
+        self.env["GIT_ASKPASS"] = tmp.name
+        self.env["GIT_TERMINAL_PROMPT"] = "0" 
+
 
     def set_git_env(self, key: str) -> None:
         self.env["GIT_SSH_COMMAND"] = self._build_ssh_command(key)
