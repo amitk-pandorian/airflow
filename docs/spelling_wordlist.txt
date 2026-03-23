@@ -177,6 +177,7 @@ bigquery
 BigQueryHook
 Bigtable
 bigtable
+bitmask
 Bitnami
 bitshift
 bitwise
@@ -770,7 +771,9 @@ IaC
 iam
 IBM
 ibm
+ibmmq
 ibmcloudant
+ibmmq
 ideation
 idempotence
 idempotency
