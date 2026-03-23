@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import pickle
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from typing import TYPE_CHECKING
 from unittest import mock
 
@@ -37,6 +37,7 @@ from airflow.sdk.api.datamodels._generated import (
     AssetEventsResponse,
     AssetResponse,
     ConnectionResponse,
+    DagResponse,
     DagRunState,
     DagRunStateResponse,
     HITLDetailRequest,
@@ -261,6 +262,33 @@ class TestClient:
         """Test that ServerResponseError.from_response returns None for invalid status codes."""
         response = httpx.Response(status_code, json={"detail": f"Test {description}"})
         assert ServerResponseError.from_response(response) is None
+
+    @mock.patch("airflow.sdk.api.client.API_CLIENT_SSL_CERT", "/etc/airflow/certs/client.crt")
+    @mock.patch("airflow.sdk.api.client.API_CLIENT_SSL_KEY", "/etc/airflow/certs/client.key")
+    def test_sets_cert_tuple(self):
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200)
+
+        captured: dict[str, object] = {}
+        real_init = httpx.Client.__init__
+
+        def spy_init(self, *args, **kwargs):
+            captured["cert"] = kwargs.get("cert")
+            return real_init(self, *args, **kwargs)
+
+        with mock.patch.object(httpx.Client, "__init__", spy_init):
+            make_client(httpx.MockTransport(handle_request))
+
+        assert captured["cert"] == ("/etc/airflow/certs/client.crt", "/etc/airflow/certs/client.key")
+
+    @mock.patch("airflow.sdk.api.client.API_CLIENT_SSL_CERT", "/etc/airflow/certs/client.crt")
+    @mock.patch("airflow.sdk.api.client.API_CLIENT_SSL_KEY", None)
+    def test_requires_both_cert_and_key(self):
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200)
+
+        with pytest.raises(ValueError, match="Both client_ssl_cert and client_ssl_key must be set"):
+            make_client(httpx.MockTransport(handle_request))
 
 
 class TestTaskInstanceOperations:
@@ -716,7 +744,7 @@ class TestVariableOperations:
             assert result.value == "test_value"
             assert call_count == 2
 
-    def test_variable_not_found(self):
+    def test_variable_not_found(self, cap_structlog):
         # Simulate a 404 response from the server
         def handle_request(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/variables/non_existent_var":
@@ -733,11 +761,14 @@ class TestVariableOperations:
 
         client = make_client(transport=httpx.MockTransport(handle_request))
 
-        resp = client.variables.get(key="non_existent_var")
+        with cap_structlog.at_level("debug"):
+            resp = client.variables.get(key="non_existent_var")
 
         assert isinstance(resp, ErrorResponse)
         assert resp.error == ErrorType.VARIABLE_NOT_FOUND
         assert resp.detail == {"key": "non_existent_var"}
+        # Verify the log is at debug level, not error (#52771)
+        assert {"log_level": "debug", "event": "Variable not found"} in cap_structlog
 
     def test_variable_get_500_error(self):
         with time_machine.travel("2023-01-01T00:00:00Z", tick=False):
@@ -1536,3 +1567,88 @@ class TestSSLContextCaching:
         assert ctx1 is not ctx2
         assert info.misses == 2
         assert info.currsize == 2
+
+
+class TestDagsOperations:
+    def test_get(self):
+        """Test that the client can get a dag."""
+
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/dags/test_dag":
+                return httpx.Response(
+                    status_code=200,
+                    json={
+                        "dag_id": "test_dag",
+                        "is_paused": False,
+                        "bundle_name": "dags-folder",
+                        "bundle_version": "bundle-version",
+                        "relative_fileloc": "dags/example.py",
+                        "owners": "owner_1",
+                        "tags": ["a_tag", "z_tag"],
+                        "next_dagrun": "2026-04-13T00:00:00Z",
+                    },
+                )
+            return httpx.Response(status_code=200)
+
+        client = make_client(transport=httpx.MockTransport(handle_request))
+        result = client.dags.get(dag_id="test_dag")
+
+        assert result == DagResponse(
+            dag_id="test_dag",
+            is_paused=False,
+            bundle_name="dags-folder",
+            bundle_version="bundle-version",
+            relative_fileloc="dags/example.py",
+            owners="owner_1",
+            tags=["a_tag", "z_tag"],
+            next_dagrun=datetime(2026, 4, 13, tzinfo=dt_timezone.utc),
+        )
+
+    def test_get_not_found(self):
+        """Test that getting a missing dag raises a server response error."""
+
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/dags/missing_dag":
+                return httpx.Response(
+                    status_code=404,
+                    json={
+                        "detail": {
+                            "message": "The Dag with dag_id: `missing_dag` was not found",
+                            "reason": "not_found",
+                        }
+                    },
+                )
+            return httpx.Response(status_code=200)
+
+        client = make_client(transport=httpx.MockTransport(handle_request))
+
+        with pytest.raises(ServerResponseError) as exc_info:
+            client.dags.get(dag_id="missing_dag")
+
+        assert exc_info.value.response.status_code == 404
+        assert exc_info.value.detail == {
+            "detail": {
+                "message": "The Dag with dag_id: `missing_dag` was not found",
+                "reason": "not_found",
+            }
+        }
+
+    def test_get_server_error(self):
+        """Test that a server error while getting a dag."""
+
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/dags/test_dag":
+                return httpx.Response(
+                    status_code=500,
+                    headers=[("content-Type", "application/json")],
+                    json={
+                        "reason": "internal_server_error",
+                        "message": "Internal Server Error",
+                    },
+                )
+            return httpx.Response(status_code=200)
+
+        client = make_client(transport=httpx.MockTransport(handle_request))
+
+        with pytest.raises(ServerResponseError):
+            client.dags.get(dag_id="test_dag")

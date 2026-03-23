@@ -37,7 +37,7 @@
   - [Licence check](#licence-check)
   - [Signature check](#signature-check)
   - [SHA512 sum check](#sha512-sum-check)
-- [Verify release candidates by Contributors](#verify-release-candidates-by-contributors)
+- [Verify the release candidates by Contributors](#verify-the-release-candidates-by-contributors)
 - [Publish the final release](#publish-the-final-release)
   - [Summarize the voting for the release](#summarize-the-voting-for-the-release)
   - [Publish release to SVN](#publish-release-to-svn)
@@ -158,7 +158,8 @@ Once the release notes have been built, run the script to generate the changelog
 ./dev/chart/build_changelog_annotations.py
 ```
 
-Verify the output looks right (only entries from this release), then put them in `Chart.yaml`, for example:
+Verify the output looks right (only entries from this release), then put them below `artifacthub.io/changes` in `Chart.yaml`,
+replace previous change logs if a new release, append if another RC. Should look like for example:
 
 ```yaml
 annotations:
@@ -222,7 +223,7 @@ rm -rf dist/*
 - Generate the source tarball:
 
 ```shell
-breeze release-management prepare-helm-chart-tarball --version ${VERSION} --version-suffix ${VERSION_SUFFIX}
+breeze release-management prepare-helm-chart-tarball --version ${VERSION}
 ```
 
 Note: The version suffix is only used for the RC tag and tag message. The version in the tarball is without the suffix, so the tarball can be released as-is when the vote passes.
@@ -312,31 +313,17 @@ you need to run several workflows to publish the documentation. More details abo
 [Docs README](../docs/README.md) showing the architecture and workflows including manual workflows for
 emergency cases.
 
-There are two steps to publish the documentation:
 
-1. Publish the documentation to the `staging` S3 bucket.
+You should use the `breeze` command to publish the documentation.
+The command does the following:
 
-The release manager publishes the documentation using GitHub Actions workflow
-[Publish Docs to S3](https://github.com/apache/airflow/actions/workflows/publish-docs-to-s3.yml).
+1. Triggers [Publish Docs to S3](https://github.com/apache/airflow/actions/workflows/publish-docs-to-s3.yml).
+2. Triggers workflow in apache/airflow-site to refresh
+3. Triggers S3 to GitHub Sync
 
-You can specify the RC tag to use to build the docs and 'helm-chart' passed as packages to be built.
-
-The release manager publishes the documentation using GitHub Actions workflow
-[Publish Docs to S3](https://github.com/apache/airflow/actions/workflows/publish-docs-to-s3.yml). By
-default `auto` selection should publish to the `staging` bucket - based on
-the tag you use - pre-release tags go to staging. But you can also override it and specify the destination
-manually to be `live` or `staging`.
-
-After that step, the provider documentation should be available under the https://airflow.staged.apache.org
-(same as in the helm chart documentation).
-
-2. Invalidate Fastly cache for the documentation.
-
-In order to do it, you need to run the [Build docs](https://github.com/apache/airflow-site/actions/workflows/build.yml)
-workflow in `airflow-site` repository. Make sure to use `staging` branch.
-
-After that workflow completes, the new version should be available in the drop-down list and stable links
-should be updated and Fastly cache should be invalidated.
+```shell script
+breeze workflow-run publish-docs --ref helm-chart/${VERSION}${VERSION_SUFFIX} --site-env staging helm-chart
+```
 
 ## Prepare issue for testing status of rc
 
@@ -405,6 +392,8 @@ gpg:                using RSA key E1A1E984F55B8F280BD9CBA20BB7163892A2E48E
 gpg: Good signature from "Jed Cunningham <jedcunningham@apache.org>" [ultimate]
 plugin: Chart SHA verified. sha256:b33eac716e0416a18af89fb4fa1043fcfcf24f9f903cda3912729815213525df
 
+The documentation is available at https://airflow.staged.apache.org/helm-chart/${VERSION}/.
+
 The vote will be open for at least 72 hours ($VOTE_END_TIME UTC) or until the necessary number of votes is reached.
 
 https://www.timeanddate.com/countdown/$TIME_DATE_URL
@@ -417,6 +406,12 @@ Please vote accordingly:
 
 Only votes from PMC members are binding, but members of the community are
 encouraged to test the release and vote with "(non-binding)".
+
+The test procedure for PMC members is described in:
+https://github.com/apache/airflow/blob/main/dev/README_RELEASE_HELM_CHART.md#verify-the-release-candidate-by-pmc-members
+
+The test procedure for contributors and members of the community who would like to test this RC is described in:
+https://github.com/apache/airflow/blob/main/dev/README_RELEASE_HELM_CHART.md#verify-the-release-candidates-by-contributors
 
 Consider this my (binding) +1.
 
@@ -431,6 +426,7 @@ simply ${VERSION}. This will allow us to rename the artifact without modifying
 the artifact checksums when we actually release it.
 
 The status of testing the Helm Chart by the community is kept here:
+
 <TODO COPY LINK TO THE ISSUE CREATED>
 
 Thanks,
@@ -460,7 +456,7 @@ The legal checks include:
 ## SVN check
 
 The files should be present in the sub-folder of
-[Airflow dist](https://dist.apache.org/repos/dist/dev/airflow/)
+[Airflow dist - helm-chart](https://dist.apache.org/repos/dist/dev/airflow/helm-chart/)
 
 The following files should be present (7 files):
 
@@ -501,10 +497,12 @@ rm -rf dist/*
 
 ```shell
 breeze release-management prepare-helm-chart-tarball --version-suffix ${VERSION_SUFFIX} --ignore-version-check --skip-tagging
-VERISON_SUFFIX= breeze release-management prepare-helm-chart-package
+VERSION_SUFFIX= breeze release-management prepare-helm-chart-package
 ```
 
-Note: we temporarily unset VERSION_SUFFIX when preparing the package, as we do not want it set and the flag defaults to the env var
+> [!NOTE]
+> In case VERSION_SUFFIX is `exported`, we temporarily unset VERSION_SUFFIX when preparing the package,
+> as we do not want it set and the flag defaults to the env var.
 
 5. Compare the produced tarball binary with ones in SVN:
 As a PMC member, you should be able to clone the SVN repository:
@@ -522,10 +520,10 @@ cd asf-dist/dev/airflow
 svn update .
 ```
 
-Set an environment variable: SVN_REPO_ROOT to the root of folder where you have helm-chart
+Set an environment variable: SVN_REPO_ROOT to the root of folder where you have asf-dist checked out:
 
 ```shell script
-cd asf-dist/dev/airflow
+cd asf-dist/
 export SVN_REPO_ROOT=$(pwd -P)
 ```
 
@@ -553,7 +551,7 @@ You can run this command to do it for you (including checksum verification for y
 
 ```shell script
 # Checksum value is taken from https://downloads.apache.org/creadur/apache-rat-0.17/apache-rat-0.17-bin.tar.gz.sha512
-wget -q https://dlcdn.apache.org//creadur/apache-rat-0.17/apache-rat-0.17-bin.tar.gz -O /tmp/apache-rat-0.17-bin.tar.gz
+wget -q https://archive.apache.org/dist/creadur/apache-rat-0.17/apache-rat-0.17-bin.tar.gz -O /tmp/apache-rat-0.17-bin.tar.gz
 echo "32848673dc4fb639c33ad85172dfa9d7a4441a0144e407771c9f7eb6a9a0b7a9b557b9722af968500fae84a6e60775449d538e36e342f786f20945b1645294a0  /tmp/apache-rat-0.17-bin.tar.gz" | sha512sum -c -
 tar -xzf /tmp/apache-rat-0.17-bin.tar.gz -C /tmp
 ```
@@ -562,11 +560,12 @@ tar -xzf /tmp/apache-rat-0.17-bin.tar.gz -C /tmp
 * Enter the sources folder run the check
 
 ```shell
-rm -rf /tmp/apache/airflow-src && mkdir -p /tmp/apache-airflow-src && tar -xzf ${SVN_REPO_ROOT}/dev/airflow/helm-chart/${VERSION_RC}/airflow-chart-*-source.tar.gz --strip-components 1 -C /tmp/apache-airflow-src
+rm -rf /tmp/apache/airflow-helm-chart-src && mkdir -p /tmp/apache/airflow-helm-chart-src && tar -xzf ${SVN_REPO_ROOT}/dev/airflow/helm-chart/${VERSION_RC}/airflow-chart-*-source.tar.gz --strip-components 1 -C /tmp/apache/airflow-helm-chart-src
 ```
 
 ```shell
-java -jar /tmp/apache-rat-0.17/apache-rat-0.17.jar --input-exclude-file /tmp/apache-airflow-src/.rat-excludes /tmp/apache-airflow-src/ | grep -E "! |INFO: "
+cp ${AIRFLOW_REPO_ROOT}/.rat-excludes /tmp/apache/airflow-helm-chart-src/.rat-excludes
+java -jar /tmp/apache-rat-0.17/apache-rat-0.17.jar --input-exclude-file /tmp/apache/airflow-helm-chart-src/.rat-excludes /tmp/apache/airflow-helm-chart-src/ | grep -E "! |INFO: "
 ```
 
 where `.rat-excludes` is the file in the root of Chart source code.
@@ -693,7 +692,7 @@ Checking airflow-1.0.0.tgz.sha512
 Checking airflow-chart-1.0.0-source.tar.gz.sha512
 ```
 
-# Verify release candidates by Contributors
+# Verify the release candidates by Contributors
 
 Contributors can run below commands to test the Helm Chart
 
@@ -809,24 +808,18 @@ The command does the following:
 3. Triggers S3 to GitHub Sync
 
 ```shell script
-breeze workflow-run publish-docs --ref <tag> --site-env <staging/live/auto> helm-chart
-```
-
-The `--ref` parameter should be the tag of the release candidate you are publishing. This should be a
-release tag like `helm-chart/1.1.0`
-
-The `--site-env` parameter should be set to `staging` for pre-release versions or `live` for final releases.
-The default option is `auto` which should automatically select the right environment based on the tag name.
-
-Other available parameters can be found with:
-
-```shell script
-breeze workflow-run publish-docs --help
+breeze workflow-run publish-docs --ref helm-chart/${VERSION} --site-env live helm-chart
 ```
 
 ## Update `index.yaml` in airflow-site
 
-Regenerate `index.yaml` so it can be added to the Airflow website to allow: `helm repo add apache-airflow https://airflow.apache.org`.
+The `index.yaml` file on the Airflow website allows users to easily add the Apache Airflow Helm repository with:
+
+```shell
+helm repo add apache-airflow https://airflow.apache.org
+```
+
+To update `index.yaml` for the newly released chart version, follow these steps:
 
 ```shell
 git clone https://github.com/apache/airflow-site.git airflow-site
@@ -842,9 +835,22 @@ git push
 # and finally open a PR
 ```
 
+When the PR is merged, you need to rebuild the docs to invalidate the Fastly cache.
+
+In order to do it, you need to run the [Build docs](https://github.com/apache/airflow-site/actions/workflows/build.yml)
+workflow in `airflow-site` repository. Make sure to use `main` branch.
+
+You can check the latest chart version that is in the `index.yaml` with:
+
+```shell
+curl -s https://airflow.apache.org/index.yaml | yq e '.entries.airflow[0].version' -
+```
+
+You can see when ArtifactHUB will next check for a new version by logging in and going to the [ArtifactHUB control panel](https://artifacthub.io/control-panel/repositories).
+
 ## Wait for ArtifactHUB to discover new release
 
-As we link out to ArtifactHUB in all of our release communications, we now wait until ArtifactHUB has discovered the new release. This can take 30 minutes or so to happen after the index change PR from above is merged.
+As we link out to ArtifactHUB in all of our release communications, we now wait until ArtifactHUB has discovered the new release. This can take 60 minutes or longer to happen after the index change PR from above is merged.
 
 ## Notify developers of release
 
@@ -975,7 +981,7 @@ EOF
 ## Bump chart version in Chart.yaml
 
 Bump the chart version to the next version in `chart/Chart.yaml` in main.
-
+Do not add `-dev` suffix to the version.
 
 ## Remove old releases
 
