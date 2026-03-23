@@ -65,10 +65,7 @@ class IBMMQMessageQueueProvider(BaseMessageQueueProvider):
         return AwaitMessageTrigger  # type: ignore[return-value]
 
     def trigger_kwargs(self, queue: str, **kwargs) -> dict[str, Any]:
-        """
-        Parse URI of format:
-            mq://<conn_id>/<queue_name>
-        """
+        # Parse the queue URI
         parsed = urlparse(queue)
 
         if not parsed.netloc:

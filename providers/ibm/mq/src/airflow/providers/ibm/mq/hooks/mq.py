@@ -342,9 +342,7 @@ class IBMMQHook(BaseHook):
         queue_name: str,
         payload: str,
     ) -> None:
-        """
-        Blocking implementation of :meth:`produce` — must be called from a single thread.
-        """
+        """Blocking implementation of :meth:`produce`."""
         import ibmmq
 
         od = ibmmq.OD()
