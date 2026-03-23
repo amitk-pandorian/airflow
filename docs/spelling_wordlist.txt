@@ -771,7 +771,6 @@ IaC
 iam
 IBM
 ibm
-ibmmq
 ibmcloudant
 ibmmq
 ideation
