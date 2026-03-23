@@ -33,7 +33,7 @@ class AwaitMessageTrigger(BaseEventTrigger):
     """
     Trigger that polls an IBM MQ queue and fires a TriggerEvent when a message arrives.
 
-    Delegates to :meth:`IBMMQHook.consume` which retries with exponential
+    Delegates to :meth:`IBMMQHook.aconsume` which retries with exponential
     back-off on transient failures so that an AssetWatcher is never silently
     killed by a broken connection or swallowed exception.
 
@@ -64,7 +64,7 @@ class AwaitMessageTrigger(BaseEventTrigger):
         )
 
     async def run(self):
-        event = await IBMMQHook(self.mq_conn_id).consume(
+        event = await IBMMQHook(self.mq_conn_id).aconsume(
             queue_name=self.queue_name,
             poll_interval=self.poll_interval,
         )

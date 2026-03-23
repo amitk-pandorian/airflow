@@ -54,19 +54,19 @@ def mock_get_connection():
         yield mock_conn
 
 
-def _transparent_sync_to_async(func):
-    """Test helper: wrap a sync function so it can be awaited directly."""
-
-    async def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
 @pytest.fixture
 def patch_sync_to_async():
     """Patch sync_to_async to call the wrapped function directly for testing."""
-    with patch("airflow.providers.ibm.mq.hooks.mq.sync_to_async", side_effect=_transparent_sync_to_async):
+
+    def sync_to_async(func):
+        """Wrap a sync function so it can be awaited directly."""
+
+        async def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    with patch("airflow.providers.ibm.mq.hooks.mq.sync_to_async", side_effect=sync_to_async):
         yield
 
 
@@ -97,7 +97,7 @@ class TestIBMMQHook:
 
     @patch("ibmmq.connect")
     @patch("ibmmq.Queue")
-    async def test_consume_message(
+    async def test_aconsume_message(
         self, mock_queue_class, mock_connect, mock_get_connection, patch_sync_to_async
     ):
         """Test consuming a single message."""
@@ -109,7 +109,7 @@ class TestIBMMQHook:
         mock_queue_class.return_value = mock_queue
         mock_queue.get.return_value = MQ_PAYLOAD.format("test message").encode()
 
-        result = await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+        result = await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
         assert isinstance(result, str)
         assert "test message" in result
 
@@ -122,7 +122,7 @@ class TestIBMMQHook:
 
     @patch("ibmmq.connect")
     @patch("ibmmq.Queue")
-    async def test_produce_message(
+    async def test_aproduce_message(
         self, mock_queue_class, mock_connect, mock_get_connection, patch_sync_to_async
     ):
         """Test producing a message to the queue."""
@@ -133,7 +133,7 @@ class TestIBMMQHook:
         mock_queue = MagicMock()
         mock_queue_class.return_value = mock_queue
 
-        await self.hook.produce(queue_name="QUEUE1", payload="payload")
+        await self.hook.aproduce(queue_name="QUEUE1", payload="payload")
 
         mock_connect.assert_called_once()
         mock_queue_class.assert_called_once_with(
@@ -145,7 +145,7 @@ class TestIBMMQHook:
 
     @patch("ibmmq.connect")
     @patch("ibmmq.Queue")
-    async def test_consume_connection_broken(
+    async def test_aconsume_connection_broken(
         self, mock_queue_class, mock_connect, mock_get_connection, patch_sync_to_async, caplog
     ):
         """Test that consume logs a warning on connection broken."""
@@ -156,19 +156,19 @@ class TestIBMMQHook:
         mock_queue_class.return_value = mock_queue
         mock_queue.get.side_effect = fake_get
 
-        # consume() retries on None, so we need to cancel after the first attempt
+        # aconsume() retries on None, so we need to cancel after the first attempt
         with patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = asyncio.CancelledError
             with pytest.raises(asyncio.CancelledError):
-                await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+                await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert "MQ connection broken on queue 'QUEUE1'; will reconnect" in caplog.text
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_retries_on_none_then_succeeds(self, mock_sleep, patch_sync_to_async):
-        """When _consume_sync returns None, consume retries with backoff until a message arrives."""
-        with patch.object(self.hook, "_consume_sync", side_effect=[None, None, "payload after retries"]):
-            result = await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+    async def test_aconsume_retries_on_none_then_succeeds(self, mock_sleep, patch_sync_to_async):
+        """When consume returns None, aconsume retries with backoff until a message arrives."""
+        with patch.object(self.hook, "consume", side_effect=[None, None, "payload after retries"]):
+            result = await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert result == "payload after retries"
         assert mock_sleep.call_count == 2
@@ -176,16 +176,16 @@ class TestIBMMQHook:
         mock_sleep.assert_any_call(_BACKOFF_BASE * _BACKOFF_FACTOR)
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_retries_on_exception_then_succeeds(self, mock_sleep, patch_sync_to_async):
-        """When _consume_sync raises, consume retries with backoff."""
-        with patch.object(self.hook, "_consume_sync", side_effect=[ConnectionError("broken"), "recovered"]):
-            result = await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+    async def test_aconsume_retries_on_exception_then_succeeds(self, mock_sleep, patch_sync_to_async):
+        """When consume raises, aconsume retries with backoff."""
+        with patch.object(self.hook, "consume", side_effect=[ConnectionError("broken"), "recovered"]):
+            result = await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert result == "recovered"
         mock_sleep.assert_called_once_with(_BACKOFF_BASE)
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_backoff_caps_at_max(self, mock_sleep, patch_sync_to_async):
+    async def test_aconsume_backoff_caps_at_max(self, mock_sleep, patch_sync_to_async):
         """Backoff delay should not exceed _BACKOFF_MAX."""
         failures_needed = 0
         backoff = _BACKOFF_BASE
@@ -194,47 +194,47 @@ class TestIBMMQHook:
             failures_needed += 1
         failures_needed += 3
 
-        with patch.object(self.hook, "_consume_sync", side_effect=[None] * failures_needed + ["finally"]):
-            result = await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+        with patch.object(self.hook, "consume", side_effect=[None] * failures_needed + ["finally"]):
+            result = await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert result == "finally"
         capped_calls = [c for c in mock_sleep.call_args_list if c.args[0] == _BACKOFF_MAX]
         assert len(capped_calls) >= 3
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_logs_warning_on_none(self, mock_sleep, patch_sync_to_async, caplog):
-        """A warning is logged when _consume_sync returns None."""
-        with patch.object(self.hook, "_consume_sync", side_effect=[None, "message"]):
+    async def test_aconsume_logs_warning_on_none(self, mock_sleep, patch_sync_to_async, caplog):
+        """A warning is logged when consume returns None."""
+        with patch.object(self.hook, "consume", side_effect=[None, "message"]):
             with caplog.at_level("WARNING"):
-                await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+                await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert "IBM MQ consume returned no event" in caplog.text
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_logs_warning_on_exception(self, mock_sleep, patch_sync_to_async, caplog):
-        """A warning with traceback is logged when _consume_sync raises."""
-        with patch.object(self.hook, "_consume_sync", side_effect=[RuntimeError("boom"), "ok"]):
+    async def test_aconsume_logs_warning_on_exception(self, mock_sleep, patch_sync_to_async, caplog):
+        """A warning with traceback is logged when consume raises."""
+        with patch.object(self.hook, "consume", side_effect=[RuntimeError("boom"), "ok"]):
             with caplog.at_level("WARNING"):
-                await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+                await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
         assert "IBM MQ consume encountered an error" in caplog.text
 
     @patch("airflow.providers.ibm.mq.hooks.mq.asyncio.sleep", new_callable=AsyncMock)
-    async def test_consume_cancelled_error_propagates(self, mock_sleep, patch_sync_to_async):
+    async def test_aconsume_cancelled_error_propagates(self, mock_sleep, patch_sync_to_async):
         """CancelledError during backoff sleep propagates out of consume."""
         mock_sleep.side_effect = asyncio.CancelledError
 
-        with patch.object(self.hook, "_consume_sync", return_value=None):
+        with patch.object(self.hook, "consume", return_value=None):
             with pytest.raises(asyncio.CancelledError):
-                await self.hook.consume(queue_name="QUEUE1", poll_interval=0.1)
+                await self.hook.aconsume(queue_name="QUEUE1", poll_interval=0.1)
 
     @patch("ibmmq.connect")
     @patch("ibmmq.Queue")
     @patch("airflow.providers.ibm.mq.hooks.mq.sync_to_async")
-    async def test_consume_sync_propagates_non_mq_exceptions(
+    async def test_aconsume_propagates_non_mq_exceptions(
         self, mock_sync_to_async, mock_queue_class, mock_connect, mock_get_connection
     ):
-        """Non-MQ exceptions (e.g. TypeError) in _consume_sync propagate instead of being swallowed."""
+        """Non-MQ exceptions (e.g. TypeError) in consume propagate instead of being swallowed."""
         import threading
 
         mock_qmgr = MagicMock()
@@ -245,4 +245,4 @@ class TestIBMMQHook:
 
         stop_event = threading.Event()
         with pytest.raises(TypeError, match="Unexpected programming bug"):
-            self.hook._consume_sync("QUEUE1", 0.1, stop_event)
+            self.hook.consume("QUEUE1", 0.1, stop_event)

@@ -34,6 +34,35 @@ _BACKOFF_FACTOR: float = 2.0
 
 
 class IBMMQHook(BaseHook):
+    """
+    Interact with IBM MQ queue managers to consume and produce messages.
+
+    This hook wraps the ``ibmmq`` C client and manages connection
+    lifecycle, queue open/close, and message serialization.  Both synchronous
+    (context-manager) and asynchronous (``consume`` / ``produce``) interfaces
+    are provided.
+
+    Connection parameters (host, port, login, password) are read from the
+    Airflow connection identified by *conn_id*.  ``queue_manager``, ``channel``,
+    and ``open_options`` can be supplied either as constructor arguments or via
+    the connection's *extra* JSON — constructor arguments take precedence.
+
+    :param conn_id: Airflow connection ID for the IBM MQ instance.
+        Defaults to ``"mq_default"``.
+    :param queue_manager: Name of the IBM MQ queue manager to connect to.
+        If not provided, the value is read from the ``queue_manager`` key in
+        the connection's *extra* JSON.
+    :param channel: MQ channel name used for the connection.
+        If not provided, the value is read from the ``channel`` key in the
+        connection's *extra* JSON.
+    :param open_options: Integer bitmask of ``MQOO_*`` open options passed
+        when opening a queue (e.g.,
+        ``ibmmq.CMQC.MQOO_INPUT_SHARED | ibmmq.CMQC.MQOO_FAIL_IF_QUIESCING``).
+        If not provided, the value is resolved from the ``open_options`` key
+        in the connection's *extra* JSON, falling back to
+        ``MQOO_INPUT_SHARED``.
+    """
+
     conn_name_attr = "conn_id"
     default_conn_name = "mq_default"
     conn_type = "mq"
@@ -191,12 +220,14 @@ class IBMMQHook(BaseHook):
             )
             return message.decode("utf-8", errors="ignore")
 
-    async def consume(self, queue_name: str, poll_interval: float = 5) -> str:
+    async def aconsume(self, queue_name: str, poll_interval: float = 5) -> str:
         """
+        Asynchronous version of :meth:`consume`.
+
         Wait for a single message from the specified IBM MQ queue and return its decoded payload.
 
         The method retries with exponential back-off whenever the underlying
-        ``_consume_sync`` returns ``None`` (connection broken, timeout) or raises
+        :meth:`consume` returns ``None`` (connection broken, timeout) or raises
         an unexpected exception, so that an AssetWatcher is never silently killed
         by a transient failure.
 
@@ -220,7 +251,7 @@ class IBMMQHook(BaseHook):
         stop_event = threading.Event()
         while True:
             try:
-                result = await sync_to_async(self._consume_sync)(queue_name, poll_interval, stop_event)
+                result = await sync_to_async(self.consume)(queue_name, poll_interval, stop_event)
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -247,19 +278,21 @@ class IBMMQHook(BaseHook):
             await asyncio.sleep(backoff)
             backoff = min(backoff * _BACKOFF_FACTOR, _BACKOFF_MAX)
 
-    def _consume_sync(
+    def consume(
         self,
         queue_name: str,
         poll_interval: float,
         stop_event: threading.Event,
     ) -> str | None:
         """
-        Blocking implementation of :meth:`consume` — must be called from a single thread.
+        Blocking implementation that consumes a single message from the given IBM MQ queue.
 
         All IBM MQ handles (queue manager connection, queue) are created **and used** within
         this method, satisfying the thread-affinity requirement of the IBM MQ C client library.
         The 'stop_event' is checked between 'q.get' calls so the thread terminates promptly
         after the coroutine side is canceled.
+
+        For an asynchronous interface see :meth:`aconsume`.
         """
         import ibmmq
 
@@ -323,26 +356,28 @@ class IBMMQHook(BaseHook):
             return None
         return None
 
-    async def produce(self, queue_name: str, payload: str) -> None:
+    async def aproduce(self, queue_name: str, payload: str) -> None:
         """
+        Asynchronous version of :meth:`produce`.
+
         Put a message onto the specified IBM MQ queue.
 
         All blocking IBM MQ operations run in a separate thread via 'sync_to_async' for the same
-        thread-safety reasons as :meth:`consume`.
+        thread-safety reasons as :meth:`aconsume`.
 
         :param queue_name: Name of the IBM MQ queue to which the message should be sent.
         :param payload: Message payload to send. The payload will be encoded as UTF-8
             before being placed on the queue.
         :return: None
         """
-        await sync_to_async(self._produce_sync)(queue_name, payload)
+        await sync_to_async(self.produce)(queue_name, payload)
 
-    def _produce_sync(
+    def produce(
         self,
         queue_name: str,
         payload: str,
     ) -> None:
-        """Blocking implementation of :meth:`produce`."""
+        """Blocking implementation of :meth:`aproduce`."""
         import ibmmq
 
         od = ibmmq.OD()
