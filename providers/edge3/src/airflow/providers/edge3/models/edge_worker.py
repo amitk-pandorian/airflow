@@ -193,7 +193,7 @@ def set_metrics(
             legacy_name_tags={"worker_name": worker_name, "queues": ",".join(queues)},
         )
     else:
-        from airflow.stats import Stats
+        from airflow.providers.common.compat.sdk import Stats
 
         Stats.gauge(f"edge_worker.connected.{worker_name}", int(connected))
         Stats.gauge("edge_worker.connected", int(connected), tags={"worker_name": worker_name})

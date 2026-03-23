@@ -200,7 +200,7 @@ class CeleryExecutor(BaseExecutor):
 
                         stats.incr("celery.task_timeout_error")
                     else:
-                        from airflow.stats import Stats
+                        from airflow.providers.common.compat.sdk import Stats
 
                         Stats.incr("celery.task_timeout_error")
                     self.log.info(
