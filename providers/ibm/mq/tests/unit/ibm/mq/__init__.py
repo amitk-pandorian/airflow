@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
-try:
-    import ibmmq  # real one might exist
-except ModuleNotFoundError:
+import importlib.util
+
+if not importlib.util.find_spec("ibmmq"):
     import sys
     from unittest.mock import MagicMock
 
