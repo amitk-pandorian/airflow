@@ -98,9 +98,9 @@ export class ConnectionsPage extends BasePage {
     // Sorting and filtering
     this.tableHeader = page.getByRole("columnheader").first();
 
-    this.connectionIdHeader = page.getByRole("columnheader", { name: "Connection ID" });
-    this.connectionTypeHeader = page.getByRole("columnheader", { name: "Connection Type" });
-    this.hostHeader = page.getByRole("columnheader", { name: "Host" });
+    this.connectionIdHeader = page.getByRole("columnheader").filter({ hasText: "Connection ID" });
+    this.connectionTypeHeader = page.getByRole("columnheader").filter({ hasText: "Connection Type" });
+    this.hostHeader = page.getByRole("columnheader").filter({ hasText: "Host" });
 
     this.searchInput = page.locator('input[placeholder*="Search"], input[placeholder*="search"]').first();
     // All table body rows (used by connectionRows for web-first assertions)
