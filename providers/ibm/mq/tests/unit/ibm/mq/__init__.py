@@ -26,6 +26,11 @@ except ModuleNotFoundError:
             super().__init__(msg)
             self.reason = reason
 
+    class PYIFError(Exception):
+        def __init__(self, msg="", reason=None):
+            super().__init__(msg)
+            self.reason = reason
+
     fake_ibmmq = MagicMock()
     fake_ibmmq.CMQC.MQRC_NO_MSG_AVAILABLE = 2033
     fake_ibmmq.CMQC.MQRC_CONNECTION_BROKEN = 2009
@@ -33,6 +38,7 @@ except ModuleNotFoundError:
     fake_ibmmq.CMQC.MQGMO_NO_SYNCPOINT = 2
     fake_ibmmq.CMQC.MQGMO_CONVERT = 4
     fake_ibmmq.MQMIError = MQMIError
+    fake_ibmmq.PYIFError = PYIFError
     fake_ibmmq.OD = MagicMock()
     fake_ibmmq.MD = MagicMock()
     fake_ibmmq.GMO = MagicMock()
