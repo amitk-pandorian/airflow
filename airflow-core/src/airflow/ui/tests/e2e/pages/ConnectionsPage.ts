@@ -90,8 +90,8 @@ export class ConnectionsPage extends BasePage {
     // Alerts
     this.successAlert = page.locator('[data-scope="toast"][data-part="root"]');
 
-    // Delete confirmation dialog
-    this.confirmDeleteButton = page.getByRole("button", { name: "Delete" }).first();
+    // Delete confirmation dialog — the confirm button text comes from deleteActions.modal.confirmButton ("Yes, Delete")
+    this.confirmDeleteButton = page.getByRole("button", { name: "Yes, Delete" });
     this.rowsPerPageSelect = page.locator("select");
 
     // Sorting and filtering
