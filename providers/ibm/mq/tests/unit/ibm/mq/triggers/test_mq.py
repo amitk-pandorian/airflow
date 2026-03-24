@@ -44,7 +44,7 @@ class TestMQTrigger:
         }
 
     @pytest.mark.asyncio
-    @patch.object(IBMMQHook, "consume", new_callable=AsyncMock, return_value="test message")
+    @patch.object(IBMMQHook, "aconsume", new_callable=AsyncMock, return_value="test message")
     async def test_trigger_run_yields_event(self, mock_consume):
         """run() delegates to consume() and yields the result as a TriggerEvent."""
         trigger = AwaitMessageTrigger(
