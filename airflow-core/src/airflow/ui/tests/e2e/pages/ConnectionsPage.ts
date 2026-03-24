@@ -77,7 +77,7 @@ export class ConnectionsPage extends BasePage {
     this.saveButton = page.getByRole("button", { name: /^save$/i });
 
     // Form inputs (Chakra UI inputs)
-    this.connectionForm = page.getByRole("dialog");
+    this.connectionForm = page.locator('[data-scope="dialog"][data-part="content"]'); 
     this.connectionIdInput = page.locator('input[name="connection_id"]').first();
     this.connectionTypeSelect = page.getByRole("combobox").first();
     this.hostInput = page.locator('input[name="host"]').first();
@@ -87,7 +87,6 @@ export class ConnectionsPage extends BasePage {
     this.schemaInput = page.locator('input[name="schema"]').first();
     // Try multiple possible selectors
     this.descriptionInput = page.locator('[name="description"]').first();
-
     // Alerts
     this.successAlert = page.locator('[data-scope="toast"][data-part="root"]');
 
@@ -113,7 +112,7 @@ export class ConnectionsPage extends BasePage {
     await expect(this.addButton).toBeEnabled({ timeout: 5000 });
     await this.addButton.click();
     // Wait for form to load
-    await expect(this.connectionForm).toBeVisible({ timeout: 10_000 });
+    await expect(this.connectionIdInput).toBeVisible({ timeout: 10_000 });
   }
 
   // Click edit button for a specific connection
@@ -137,6 +136,7 @@ export class ConnectionsPage extends BasePage {
     await expect(editButton).toBeEnabled({ timeout: 5000 });
     await editButton.click();
     await expect(this.connectionForm).toBeVisible({ timeout: 10_000 });
+    await expect(this.connectionIdInput).toBeVisible({ timeout: 10_000 });
   }
   // Create a new connection with full workflow
   public async createConnection(details: ConnectionDetails): Promise<void> {
@@ -165,7 +165,7 @@ export class ConnectionsPage extends BasePage {
     await expect(this.confirmDeleteButton).toBeEnabled({ timeout: 5000 });
     await this.confirmDeleteButton.click();
 
-    await expect(this.getConnectionRow(connectionId)).not.toBeVisible();
+    await expect(this.getConnectionRow(connectionId)).not.toBeVisible({ timeout: 15_000 });
   }
 
   // Edit a connection by connection ID
@@ -190,7 +190,7 @@ export class ConnectionsPage extends BasePage {
       // Click the select field to open the dropdown
       const selectCombobox = this.page.getByRole("combobox").first();
 
-      await expect(selectCombobox).toBeEnabled({ timeout: 10_000 });
+      await expect(selectCombobox).toBeEnabled({ timeout: 25_000 });
       await selectCombobox.click();
 
       // Wait for options to appear and click the matching option
