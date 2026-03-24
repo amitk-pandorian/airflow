@@ -85,6 +85,7 @@ from airflow.api_fastapi.core_api.security import (
 )
 from airflow.api_fastapi.core_api.services.public.dag_run import DagRunWaiter
 from airflow.api_fastapi.logging.decorators import action_logging
+from airflow.exceptions import ParamValidationError
 from airflow.listeners.listener import get_listener_manager
 from airflow.models import DagModel, DagRun
 from airflow.models.asset import AssetEvent
@@ -482,19 +483,22 @@ def trigger_dag_run(
     dag = get_latest_version_of_dag(dag_bag, dag_id, session)
     params = body.validate_context(dag)
 
-    dag_run = dag.create_dagrun(
-        run_id=params["run_id"],
-        logical_date=params["logical_date"],
-        data_interval=params["data_interval"],
-        run_after=params["run_after"],
-        conf=params["conf"],
-        run_type=DagRunType.MANUAL,
-        triggered_by=triggered_by,
-        triggering_user_name=user.get_name(),
-        state=DagRunState.QUEUED,
-        partition_key=params["partition_key"],
-        session=session,
-    )
+    try:
+        dag_run = dag.create_dagrun(
+            run_id=params["run_id"],
+            logical_date=params["logical_date"],
+            data_interval=params["data_interval"],
+            run_after=params["run_after"],
+            conf=params["conf"],
+            run_type=DagRunType.MANUAL,
+            triggered_by=triggered_by,
+            triggering_user_name=user.get_name(),
+            state=DagRunState.QUEUED,
+            partition_key=params["partition_key"],
+            session=session,
+        )
+    except ParamValidationError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
     dag_run_note = body.note
     if dag_run_note:

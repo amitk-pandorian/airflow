@@ -37,6 +37,7 @@ try:
         AirflowOptionalProviderFeatureException as AirflowOptionalProviderFeatureException,
         AirflowRescheduleException as AirflowRescheduleException,
         AirflowTimetableInvalid as AirflowTimetableInvalid,
+        ParamValidationError as ParamValidationError,
         TaskNotFound as TaskNotFound,
     )
 except ModuleNotFoundError:
