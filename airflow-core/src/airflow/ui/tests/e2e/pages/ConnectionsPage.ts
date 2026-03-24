@@ -77,7 +77,7 @@ export class ConnectionsPage extends BasePage {
     this.saveButton = page.getByRole("button", { name: /^save$/i });
 
     // Form inputs (Chakra UI inputs)
-    this.connectionForm = page.locator('[data-scope="dialog"][data-part="content"]'); 
+    this.connectionForm = page.locator('[data-scope="dialog"][data-part="content"]');
     this.connectionIdInput = page.locator('input[name="connection_id"]').first();
     this.connectionTypeSelect = page.getByRole("combobox").first();
     this.hostInput = page.locator('input[name="host"]').first();
@@ -97,9 +97,9 @@ export class ConnectionsPage extends BasePage {
     // Sorting and filtering
     this.tableHeader = page.getByRole("columnheader").first();
 
-    this.connectionIdHeader = page.getByRole("columnheader").filter({ hasText: "Connection ID" });
-    this.connectionTypeHeader = page.getByRole("columnheader").filter({ hasText: "Connection Type" });
-    this.hostHeader = page.getByRole("columnheader").filter({ hasText: "Host" });
+    this.connectionIdHeader = page.getByText("Connection ID").first();
+    this.connectionTypeHeader = page.getByText("Connection Type").first();
+    this.hostHeader = page.getByText("Host").first();
 
     this.searchInput = page.locator('input[placeholder*="Search"], input[placeholder*="search"]').first();
     // All table body rows (used by connectionRows for web-first assertions)
@@ -117,13 +117,6 @@ export class ConnectionsPage extends BasePage {
 
   // Click edit button for a specific connection
   public async clickEditButton(connectionId: string): Promise<void> {
-    // Wait for any stale dialog to close before interacting
-    const staleDialog = this.page.getByRole("dialog");
-
-    if (await staleDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await staleDialog.waitFor({ state: "detached", timeout: 5000 });
-    }
-
     const row = await this.findConnectionRow(connectionId);
 
     if (!row) {
