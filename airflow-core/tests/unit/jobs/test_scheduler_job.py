@@ -69,6 +69,7 @@ from airflow.models.backfill import Backfill, _create_backfill
 from airflow.models.callback import ExecutorCallback
 from airflow.models.dag import DagModel, get_last_dagrun, infer_automated_data_interval
 from airflow.models.dag_version import DagVersion
+from airflow.models.dagbag import DBDagBag
 from airflow.models.dagbundle import DagBundleModel
 from airflow.models.dagrun import DagRun
 from airflow.models.dagwarning import DagWarning
@@ -1825,7 +1826,7 @@ class TestSchedulerJob:
         scheduler_job = Job()
         self.job_runner = SchedulerJobRunner(job=scheduler_job)
 
-        self.job_runner.scheduler_dag_bag = mock.MagicMock()
+        self.job_runner.scheduler_dag_bag = mock.MagicMock(spec=DBDagBag)
         self.job_runner.scheduler_dag_bag.get_dag_for_run.return_value = None
 
         dr = dag_maker.create_dagrun(state=DagRunState.RUNNING)
@@ -1843,47 +1844,6 @@ class TestSchedulerJob:
         tis = dr.get_task_instances(session=session)
         assert len(tis) == 2
         assert all(ti.state == State.SCHEDULED for ti in tis)
-
-    def test_missing_serialized_dag_does_not_bulk_fail_tasks(self, dag_maker, session):
-        """Regression test for https://github.com/apache/airflow/issues/62050
-
-        When the serialized DAG is transiently missing, all SCHEDULED task instances for the DAG
-        should remain SCHEDULED so the scheduler can pick them up in the next iteration.
-        Previously, the scheduler would bulk-fail all SCHEDULED tasks when it couldn't find the
-        serialized DAG in the DagBag.
-        """
-        dag_id = "SchedulerJobTest.test_missing_serialized_dag_bulk_fails"
-
-        with dag_maker(dag_id=dag_id, session=session, default_args={"max_active_tis_per_dag": 2}):
-            EmptyOperator(task_id="task_a")
-            EmptyOperator(task_id="task_b")
-
-        scheduler_job = Job()
-        self.job_runner = SchedulerJobRunner(job=scheduler_job)
-
-        # Simulate serialized DAG being transiently missing
-        self.job_runner.scheduler_dag_bag = mock.MagicMock()
-        self.job_runner.scheduler_dag_bag.get_dag_for_run.return_value = None
-
-        dr = dag_maker.create_dagrun(state=DagRunState.RUNNING)
-        for ti in dr.task_instances:
-            ti.state = State.SCHEDULED
-            session.merge(ti)
-        session.flush()
-
-        res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
-        session.flush()
-
-        # No tasks should be queued since serialized DAG is missing
-        assert len(res) == 0
-        # All tasks should remain SCHEDULED — not FAILED
-        tis = dr.get_task_instances(session=session)
-        assert len(tis) == 2
-        for ti in tis:
-            assert ti.state == State.SCHEDULED, (
-                f"Task {ti.task_id} was {ti.state} but expected SCHEDULED. "
-                "The scheduler should not bulk-fail tasks when serialized DAG is transiently missing."
-            )
 
     def test_nonexistent_pool(self, dag_maker):
         dag_id = "SchedulerJobTest.test_nonexistent_pool"
