@@ -176,7 +176,7 @@ class IBMMQHook(BaseHook):
             self.open_options = getattr(
                 ibmmq.CMQC,
                 config.get("open_options", self.default_open_options),
-                ibmmq.CMQC.MQOO_INPUT_EXCLUSIVE,
+                ibmmq.CMQC.MQOO_INPUT_SHARED,
             )
 
         csp = ibmmq.CSP()
