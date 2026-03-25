@@ -351,7 +351,7 @@ class TestCliTasks:
         # is not available. Validation should be skipped (NotFullyPopulated).
         # The render may fail for other reasons, but not with our
         # "out of range" ValueError.
-        with pytest.raises(Exception) as exc_info:  # noqa: PT011
+        with pytest.raises(Exception) as exc_info:
             task_command.task_render(
                 self.parser.parse_args(
                     [
