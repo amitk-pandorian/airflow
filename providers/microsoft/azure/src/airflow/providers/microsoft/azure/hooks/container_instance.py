@@ -29,6 +29,7 @@ from azure.mgmt.containerinstance.aio import (
     ContainerInstanceManagementClient as AsyncContainerInstanceManagementClient,
 )
 
+from airflow.providers.common.compat.connection import get_async_connection
 from airflow.providers.common.compat.sdk import AirflowException
 from airflow.providers.microsoft.azure.hooks.base_azure import AzureBaseHook
 from airflow.providers.microsoft.azure.utils import (
@@ -190,9 +191,9 @@ class AzureContainerInstanceAsyncHook(AzureContainerInstanceHook):
     """
 
     def __init__(self, azure_conn_id: str = AzureContainerInstanceHook.default_conn_name) -> None:
+        super().__init__(azure_conn_id=azure_conn_id)
         self._async_conn: AsyncContainerInstanceManagementClient | None = None
         self._async_credential: Any = None
-        super().__init__(azure_conn_id=azure_conn_id)
 
     async def __aenter__(self) -> AzureContainerInstanceAsyncHook:
         return self
@@ -214,7 +215,7 @@ class AzureContainerInstanceAsyncHook(AzureContainerInstanceHook):
         if self._async_conn is not None:
             return self._async_conn
 
-        conn = self.get_connection(self.conn_id)
+        conn = await get_async_connection(self.conn_id)
         tenant = conn.extra_dejson.get("tenantId")
         subscription_id = cast("str", conn.extra_dejson.get("subscriptionId"))
 

@@ -316,7 +316,7 @@ class AzureContainerInstancesOperator(BaseOperator):
         return identity
 
     @cached_property
-    def _ci_hook(self) -> AzureContainerInstanceHook:
+    def hook(self) -> AzureContainerInstanceHook:
         return AzureContainerInstanceHook(azure_conn_id=self.ci_conn_id)
 
     def execute(self, context: Context) -> int:
@@ -325,7 +325,7 @@ class AzureContainerInstancesOperator(BaseOperator):
 
         if self.fail_if_exists:
             self.log.info("Testing if container group already exists")
-            if self._ci_hook.exists(self.resource_group, self.name):
+            if self.hook.exists(self.resource_group, self.name):
                 raise AirflowException("Container group exists")
 
         if self.registry_conn_id:
@@ -396,12 +396,12 @@ class AzureContainerInstancesOperator(BaseOperator):
                 identity=self.identity,
             )
 
-            self._ci_hook.create_or_update(self.resource_group, self.name, container_group)
+            self.hook.create_or_update(self.resource_group, self.name, container_group)
 
             self.log.info("Container group started %s/%s", self.resource_group, self.name)
 
             if self.deferrable:
-                cg_state = self._ci_hook.get_state(self.resource_group, self.name)
+                cg_state = self.hook.get_state(self.resource_group, self.name)
                 instance_view = cg_state.containers[0].instance_view
                 current_state = (
                     instance_view.current_state.state
@@ -425,7 +425,7 @@ class AzureContainerInstancesOperator(BaseOperator):
 
             exit_code = self._monitor_logging(self.resource_group, self.name)
             if self.xcom_all is not None:
-                logs = self._ci_hook.get_logs(self.resource_group, self.name)
+                logs = self.hook.get_logs(self.resource_group, self.name)
                 if logs is None:
                     context["ti"].xcom_push(key="logs", value=[])
                 else:
@@ -454,7 +454,7 @@ class AzureContainerInstancesOperator(BaseOperator):
     def on_kill(self) -> None:
         self.log.info("Deleting container group")
         try:
-            self._ci_hook.delete(self.resource_group, self.name)
+            self.hook.delete(self.resource_group, self.name)
         except Exception:
             self.log.exception("Could not delete container group")
 
@@ -481,7 +481,7 @@ class AzureContainerInstancesOperator(BaseOperator):
             )
 
         if self.xcom_all is not None:
-            logs = self._ci_hook.get_logs(self.resource_group, self.name)
+            logs = self.hook.get_logs(self.resource_group, self.name)
             if logs is None:
                 context["ti"].xcom_push(key="logs", value=[])
             elif self.xcom_all:
@@ -503,7 +503,7 @@ class AzureContainerInstancesOperator(BaseOperator):
 
         while True:
             try:
-                cg_state = self._ci_hook.get_state(resource_group, name)
+                cg_state = self.hook.get_state(resource_group, name)
                 instance_view = cg_state.containers[0].instance_view
                 # If there is no instance view, we show the provisioning state
                 if instance_view is not None:
@@ -528,7 +528,7 @@ class AzureContainerInstancesOperator(BaseOperator):
 
                 if state in ["Running", "Terminated", "Succeeded"]:
                     try:
-                        logs = self._ci_hook.get_logs(resource_group, name)
+                        logs = self.hook.get_logs(resource_group, name)
                         if logs and logs[0] is None:
                             self.log.error("Container log is broken, marking as failed.")
                             return 1
