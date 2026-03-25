@@ -3870,7 +3870,7 @@ docs = [{ name = "apache-airflow-devel-common", extras = ["docs"], editable = "d
 
 [[package]]
 name = "apache-airflow-providers-common-ai"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "providers/common/ai" }
 dependencies = [
     { name = "apache-airflow" },
