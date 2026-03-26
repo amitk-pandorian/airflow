@@ -63,6 +63,4 @@ def client(request: pytest.FixtureRequest):
 
         yield client
 
-        lifespan.registry.close()
-
     exec_app.dependency_overrides.pop(_jwt_bearer, None)
