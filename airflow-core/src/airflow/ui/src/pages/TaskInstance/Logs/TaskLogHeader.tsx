@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /*!
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -42,6 +43,7 @@ import { TaskTrySelect } from "src/components/TaskTrySelect";
 import { Menu, Select } from "src/components/ui";
 import { LazyClipboard } from "src/components/ui/LazyClipboard";
 import { SearchParamsKeys } from "src/constants/searchParams";
+import { useConfig } from "src/queries/useConfig";
 import { defaultSystem } from "src/theme";
 import { type LogLevel, logLevelColorMapping, logLevelOptions } from "src/utils/logs";
 
@@ -112,8 +114,8 @@ export const TaskLogHeader = ({
     } else {
       searchParams.delete(SearchParamsKeys.LOG_LEVEL);
       value
-        .filter((state) => state !== "all")
-        .map((state) => searchParams.append(SearchParamsKeys.LOG_LEVEL, state));
+        .filter((state: string) => state !== "all")
+        .forEach((state: string) => searchParams.append(SearchParamsKeys.LOG_LEVEL, state));
     }
     setSearchParams(searchParams);
   };
@@ -123,14 +125,23 @@ export const TaskLogHeader = ({
 
     if (((val === undefined || val === "all") && rest.length === 0) || rest.includes("all")) {
       searchParams.delete(SearchParamsKeys.SOURCE);
+      searchParams.append(SearchParamsKeys.SOURCE, "all");
     } else {
       searchParams.delete(SearchParamsKeys.SOURCE);
       value
-        .filter((state) => state !== "all")
-        .map((state) => searchParams.append(SearchParamsKeys.SOURCE, state));
+        .filter((state: string) => state !== "all")
+        .forEach((state: string) => searchParams.append(SearchParamsKeys.SOURCE, state));
     }
     setSearchParams(searchParams);
   };
+
+  const defaultLogSource = useConfig("default_ui_log_source") as string | undefined;
+  const sourcesToSelect =
+    sources.length > 0
+      ? sources
+      : defaultLogSource !== undefined && defaultLogSource !== "" && defaultLogSource !== "All Sources"
+        ? [defaultLogSource]
+        : ["all"];
 
   return (
     <Box>
@@ -155,7 +166,7 @@ export const TaskLogHeader = ({
               {() =>
                 hasLogLevels ? (
                   <HStack flexWrap="wrap" fontSize="md" gap="4px" paddingY="8px">
-                    {logLevels.map((level) => (
+                    {logLevels.map((level: string) => (
                       <Badge colorPalette={logLevelColorMapping[level as LogLevel]} key={level}>
                         {level.toUpperCase()}
                       </Badge>
@@ -168,7 +179,7 @@ export const TaskLogHeader = ({
             </Select.ValueText>
           </Select.Trigger>
           <Select.Content zIndex={zIndex}>
-            {logLevelOptions.items.map((option) => (
+            {logLevelOptions.items.map((option: { label: string; value: string }) => (
               <Select.Item item={option} key={option.label}>
                 {option.value === "all" ? (
                   translate(option.label)
@@ -187,13 +198,13 @@ export const TaskLogHeader = ({
             maxW="250px"
             multiple
             onValueChange={handleSourceChange}
-            value={sources}
+            value={sourcesToSelect}
           >
             <Select.Trigger clearable>
               <Select.ValueText placeholder={translate("dag:logs.allSources")} />
             </Select.Trigger>
             <Select.Content zIndex={zIndex}>
-              {sourceOptionList.items.map((option) => (
+              {sourceOptionList.items.map((option: { label: string; value: string }) => (
                 <Select.Item item={option} key={option.label}>
                   {option.label}
                 </Select.Item>
