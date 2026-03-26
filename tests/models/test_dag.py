@@ -3065,7 +3065,12 @@ class TestDagModel:
         assert dag_models == [dag_model]
 
     def test_dags_needing_dagruns_skips_ddrq_when_serialized_dag_missing(self, session, caplog):
-        """DDRQ rows for a dag_id without SerializedDagModel must be skipped (no dataset_triggered info)."""
+        """DDRQ rows for a dag_id without SerializedDagModel must be skipped (no dataset_triggered info).
+
+        Rows must remain in ``dataset_dag_run_queue`` so the scheduler can re-evaluate on a later
+        heartbeat once ``SerializedDagModel`` exists (``dags_needing_dagruns`` only drops them from
+        the in-memory candidate set, it does not delete ORM rows).
+        """
         orphan_dag_id = "ddr_q_no_serialized_dag"
         session.add(DatasetModel(uri="dataset_for_orphan_ddrq"))
         session.flush()
@@ -3085,12 +3090,18 @@ class TestDagModel:
         session.add(DatasetDagRunQueue(dataset_id=dataset_id, target_dag_id=orphan_dag_id))
         session.flush()
 
-        with caplog.at_level(logging.WARNING, logger="airflow.models.dag"):
+        with caplog.at_level(logging.DEBUG, logger="airflow.models.dag"):
             _query, dataset_triggered_dag_info = DagModel.dags_needing_dagruns(session)
 
         assert orphan_dag_id not in dataset_triggered_dag_info
-        assert "[DEBUG DATASETS] DAGs in DDRQ but missing SerializedDagModel" in caplog.text
+        assert "DAGs in DDRQ but missing SerializedDagModel" in caplog.text
         assert orphan_dag_id in caplog.text
+        assert (
+            session.query(DatasetDagRunQueue)
+            .filter(DatasetDagRunQueue.target_dag_id == orphan_dag_id)
+            .count()
+            == 1
+        )
 
     def test_dags_needing_dagruns_missing_serialized_warning_lists_sorted_dag_ids(self, session, caplog):
         """When multiple dags lack SerializedDagModel, the warning lists dag_ids sorted."""
@@ -3133,17 +3144,21 @@ class TestDagModel:
         )
         session.flush()
 
-        with caplog.at_level(logging.WARNING, logger="airflow.models.dag"):
+        with caplog.at_level(logging.DEBUG, logger="airflow.models.dag"):
             _query, dataset_triggered_dag_info = DagModel.dags_needing_dagruns(session)
 
         assert "ghost_a" not in dataset_triggered_dag_info
         assert "ghost_z" not in dataset_triggered_dag_info
         msg = next(
-            r.message
-            for r in caplog.records
-            if "[DEBUG DATASETS] DAGs in DDRQ but missing SerializedDagModel" in r.message
+            r.message for r in caplog.records if "DAGs in DDRQ but missing SerializedDagModel" in r.message
         )
         assert msg.index("ghost_a") < msg.index("ghost_z")
+        assert (
+            session.query(DatasetDagRunQueue)
+            .filter(DatasetDagRunQueue.target_dag_id.in_(("ghost_a", "ghost_z")))
+            .count()
+            == 2
+        )
 
     def test_dags_needing_dagruns_dataset_aliases(self, dag_maker, session):
         # link dataset_alias hello_alias to dataset hello
