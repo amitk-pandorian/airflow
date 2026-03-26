@@ -21,13 +21,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AppWrapper } from "src/utils/AppWrapper";
 
+const findByRunId = (id: string) => screen.getByText((content) => content.includes(id));
+const queryByRunId = (id: string) => screen.queryByText((content) => content.includes(id));
+
 describe("DagRuns logical date filter", () => {
   it("shows all runs when no logical date filter is applied", async () => {
     render(<AppWrapper initialEntries={["/dag_runs"]} />);
-    await waitFor(() =>
-      expect(screen.getByText((content) => content.includes("run_in_range"))).toBeInTheDocument(),
-    );
-    expect(screen.getByText((content) => content.includes("run_before_filter"))).toBeInTheDocument();
+    await waitFor(() => expect(findByRunId("run_in_range")).toBeInTheDocument());
+    expect(findByRunId("run_before_filter")).toBeInTheDocument();
   });
   it("filters runs by logical_date_gte and logical_date_lte URL params", async () => {
     render(
@@ -37,9 +38,7 @@ describe("DagRuns logical date filter", () => {
         ]}
       />,
     );
-    await waitFor(() =>
-      expect(screen.getByText((content) => content.includes("run_in_range"))).toBeInTheDocument(),
-    );
-    expect(screen.queryByText((content) => content.includes("run_before_filter"))).not.toBeInTheDocument();
+    await waitFor(() => expect(findByRunId("run_in_range")).toBeInTheDocument());
+    expect(queryByRunId("run_before_filter")).not.toBeInTheDocument();
   });
 });
