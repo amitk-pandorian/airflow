@@ -214,9 +214,9 @@ const runColumns = (
     accessorKey: "actions",
     cell: ({ row }) => (
       <Flex justifyContent="end">
-        <ClearRunButton dagRun={row.original} disabled={selectedRows.size > 0} />
-        <MarkRunAsButton dagRun={row.original} disabled={selectedRows.size > 0} />
-        <DeleteRunButton dagRun={row.original} disabled={selectedRows.size > 0} />
+        <ClearRunButton dagRun={row.original} disabled={Boolean(rowSelectionParams?.selectedRows?.size)} />
+        <MarkRunAsButton dagRun={row.original} disabled={Boolean(rowSelectionParams?.selectedRows?.size)} />
+        <DeleteRunButton dagRun={row.original} disabled={Boolean(rowSelectionParams?.selectedRows?.size)} />
       </Flex>
     ),
     enableSorting: false,
