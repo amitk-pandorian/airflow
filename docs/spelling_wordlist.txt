@@ -257,6 +257,7 @@ cncf
 cnf
 cnt
 codebase
+codec
 codecov
 codepoints
 Colour
@@ -1162,6 +1163,7 @@ passwd
 pathlib
 pathType
 Paxos
+PDFs
 PEM
 Pem
 pem
