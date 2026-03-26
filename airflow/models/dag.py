@@ -4069,6 +4069,11 @@ class DagModel(Base):
         This will return a resultset of rows that is row-level-locked with a "SELECT ... FOR UPDATE" query,
         you should ensure that any scheduling decisions are made in a single transaction -- as soon as the
         transaction is committed it will be unlocked.
+
+        For dataset-triggered scheduling, DAGs that have ``DatasetDagRunQueue`` rows but no matching
+        ``SerializedDagModel`` row are omitted from the returned ``dataset_triggered_dag_info`` until
+        serialization exists; queue rows are **not** deleted here so the scheduler can re-evaluate on a
+        later run.
         """
         from airflow.models.serialized_dag import SerializedDagModel
 
