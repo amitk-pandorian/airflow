@@ -27,13 +27,13 @@ from typing import TYPE_CHECKING, Any
 
 import pendulum
 
+from airflow._shared.observability.metrics import stats
 from airflow.cli.cli_config import DefaultHelpParser
 from airflow.configuration import conf
 from airflow.executors import workloads
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.models import Log
 from airflow.models.callback import CallbackKey
-from airflow.observability import stats
 from airflow.observability.metrics import stats_utils
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.state import TaskInstanceState
