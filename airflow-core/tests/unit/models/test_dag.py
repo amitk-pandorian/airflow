@@ -2061,21 +2061,23 @@ class TestDagModel:
         session.add(AssetModel(uri=orphan_uri))
         session.flush()
         asset_id = session.scalar(select(AssetModel.id).where(AssetModel.uri == orphan_uri))
-        session.add(
-            DagModel(
-                dag_id=orphan_dag_id,
-                bundle_name="testing",
-                max_active_tasks=1,
-                has_task_concurrency_limits=False,
-                max_consecutive_failed_dag_runs=0,
-                next_dagrun=timezone.datetime(2038, 1, 1),
-                next_dagrun_create_after=timezone.datetime(2038, 1, 2),
-                is_stale=False,
-                has_import_errors=False,
-                is_paused=False,
-                asset_expression={"any": [{"uri": orphan_uri}]},
-            )
+
+        dag_model = DagModel(
+            dag_id=orphan_dag_id,
+            bundle_name="testing",
+            max_active_tasks=1,
+            has_task_concurrency_limits=False,
+            max_consecutive_failed_dag_runs=0,
+            next_dagrun=timezone.datetime(2038, 1, 1),
+            next_dagrun_create_after=timezone.datetime(2038, 1, 2),
+            is_stale=False,
+            has_import_errors=False,
+            is_paused=False,
+            asset_expression={"any": [{"uri": orphan_uri}]},
         )
+        session.add(dag_model)
+        session.flush()
+
         session.add(AssetDagRunQueue(asset_id=asset_id, target_dag_id=orphan_dag_id))
         session.flush()
 
@@ -2137,6 +2139,12 @@ class TestDagModel:
                     is_paused=False,
                     asset_expression={"any": [{"uri": "test://ds_ghost_a"}]},
                 ),
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
                 AssetDagRunQueue(asset_id=id_z, target_dag_id="ghost_z"),
                 AssetDagRunQueue(asset_id=id_a, target_dag_id="ghost_a"),
             ]
