@@ -19,12 +19,12 @@ from __future__ import annotations
 import pytest
 
 from airflow.partition_mappers.temporal import (
-    DailyMapper,
-    HourlyMapper,
-    MonthlyMapper,
-    QuarterlyMapper,
-    WeeklyMapper,
-    YearlyMapper,
+    StartOfDayMapper,
+    StartOfHourMapper,
+    StartOfMonthMapper,
+    StartOfQuarterMapper,
+    StartOfWeekMapper,
+    StartOfYearMapper,
     _BaseTemporalMapper,
 )
 
@@ -33,12 +33,12 @@ class TestTemporalMappers:
     @pytest.mark.parametrize(
         ("mapper_cls", "expected_downstream_key"),
         [
-            (HourlyMapper, "2026-02-10T14"),
-            (DailyMapper, "2026-02-10"),
-            (WeeklyMapper, "2026-02-09 (W07)"),
-            (MonthlyMapper, "2026-02"),
-            (QuarterlyMapper, "2026-Q1"),
-            (YearlyMapper, "2026"),
+            (StartOfHourMapper, "2026-02-10T14"),
+            (StartOfDayMapper, "2026-02-10"),
+            (StartOfWeekMapper, "2026-02-09 (W07)"),
+            (StartOfMonthMapper, "2026-02"),
+            (StartOfQuarterMapper, "2026-Q1"),
+            (StartOfYearMapper, "2026"),
         ],
     )
     def test_to_downstream(
@@ -52,12 +52,12 @@ class TestTemporalMappers:
     @pytest.mark.parametrize(
         ("mapper_cls", "expected_outut_format"),
         [
-            (HourlyMapper, "%Y-%m-%dT%H"),
-            (DailyMapper, "%Y-%m-%d"),
-            (WeeklyMapper, "%Y-%m-%d (W%V)"),
-            (MonthlyMapper, "%Y-%m"),
-            (QuarterlyMapper, "%Y-Q{quarter}"),
-            (YearlyMapper, "%Y"),
+            (StartOfHourMapper, "%Y-%m-%dT%H"),
+            (StartOfDayMapper, "%Y-%m-%d"),
+            (StartOfWeekMapper, "%Y-%m-%d (W%V)"),
+            (StartOfMonthMapper, "%Y-%m"),
+            (StartOfQuarterMapper, "%Y-Q{quarter}"),
+            (StartOfYearMapper, "%Y"),
         ],
     )
     def test_serialize(self, mapper_cls: type[_BaseTemporalMapper], expected_outut_format: str):
@@ -69,7 +69,14 @@ class TestTemporalMappers:
 
     @pytest.mark.parametrize(
         "mapper_cls",
-        [HourlyMapper, DailyMapper, WeeklyMapper, MonthlyMapper, QuarterlyMapper, YearlyMapper],
+        [
+            StartOfHourMapper,
+            StartOfDayMapper,
+            StartOfWeekMapper,
+            StartOfMonthMapper,
+            StartOfQuarterMapper,
+            StartOfYearMapper,
+        ],
     )
     def test_deserialize(self, mapper_cls):
         pm = mapper_cls.deserialize(

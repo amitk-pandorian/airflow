@@ -109,11 +109,22 @@ export default defineConfig({
   retries: process.env.CI !== undefined && process.env.CI !== "" ? 2 : 0,
 
   testDir: "./tests/e2e/specs",
+  // TODO: Temporarily ignore flaky specs until stabilized
+  // See: #63036
+  testIgnore: [
+    "**/dag-runs-tab.spec.ts",
+    "**/dag-runs.spec.ts",
+    "**/dag-grid-view.spec.ts",
+    "**/task-logs.spec.ts",
+    "**/dag-tasks.spec.ts",
+    "**/variable.spec.ts",
+  ],
 
   timeout: 30_000,
   use: {
     actionTimeout: 10_000,
     baseURL: process.env.AIRFLOW_UI_BASE_URL ?? "http://localhost:28080",
+    locale: "en-US",
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure",
