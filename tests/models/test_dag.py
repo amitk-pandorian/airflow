@@ -3087,6 +3087,7 @@ class TestDagModel:
                 is_paused=False,
             )
         )
+        session.flush()
         session.add(DatasetDagRunQueue(dataset_id=dataset_id, target_dag_id=orphan_dag_id))
         session.flush()
 
@@ -3138,6 +3139,12 @@ class TestDagModel:
                     has_import_errors=False,
                     is_paused=False,
                 ),
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
                 DatasetDagRunQueue(dataset_id=ds_z_id, target_dag_id="ghost_z"),
                 DatasetDagRunQueue(dataset_id=ds_a_id, target_dag_id="ghost_a"),
             ]
