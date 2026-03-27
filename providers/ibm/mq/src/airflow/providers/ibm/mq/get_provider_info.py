@@ -35,6 +35,9 @@ def get_provider_info():
             }
         ],
         "hooks": [{"integration-name": "IBM MQ", "python-modules": ["airflow.providers.ibm.mq.hooks.mq"]}],
+        "triggers": [
+            {"integration-name": "IBM MQ", "python-modules": ["airflow.providers.ibm.mq.triggers.mq"]}
+        ],
         "connection-types": [
             {
                 "hook-class-name": "airflow.providers.ibm.mq.hooks.mq.IBMMQHook",
@@ -42,12 +45,9 @@ def get_provider_info():
                 "ui-field-behaviour": {
                     "placeholders": {
                         "extra": '{"queue_manager": "QM1", "channel": "DEV.APP.SVRCONN", "open_options": cls.default_open_options}'
-                    },
+                    }
                 },
             }
-        ],
-        "triggers": [
-            {"integration-name": "IBM MQ", "python-modules": ["airflow.providers.ibm.mq.triggers.mq"]}
         ],
         "queues": ["airflow.providers.ibm.mq.queues.mq.IBMMQMessageQueueProvider"],
     }
