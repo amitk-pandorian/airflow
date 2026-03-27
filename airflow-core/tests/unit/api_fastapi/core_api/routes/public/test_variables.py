@@ -271,7 +271,6 @@ class TestGetVariable(TestVariableEndpoint):
         assert body["value"] is None
 
 
-
 class TestGetVariables(TestVariableEndpoint):
     def test_get_variables_with_undecryptable_val(self, test_client, session):
         """Listing variables should not fail with 500 when some variables have undecryptable values."""
