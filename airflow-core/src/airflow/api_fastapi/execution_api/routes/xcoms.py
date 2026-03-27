@@ -441,7 +441,6 @@ def delete_xcom(
 
 @router.delete(
     "/{dag_id}/{run_id}",
-    responses={status.HTTP_404_NOT_FOUND: {"description": "XComs not found"}},
     description="Bulk delete Xcom values.",
 )
 def bulk_delete_xcoms(
