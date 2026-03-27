@@ -1278,6 +1278,7 @@ pytest
 pythonic
 PythonOperator
 pythonpath
+pyvespa
 pywinrm
 Qdrant
 qdrant
@@ -1774,6 +1775,8 @@ venv
 venvs
 Vertica
 vertica
+Vespa
+vespa
 videointelligence
 views
 virtualenv
