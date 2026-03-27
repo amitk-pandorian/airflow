@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 from uuid import uuid4
@@ -137,7 +138,7 @@ class TestParseCommand:
         )
         return ExecuteTask(
             ti=ti,
-            dag_rel_path="test_dag.py",
+            dag_rel_path=Path("test_dag.py"),
             token="test_token",
             bundle_info=BundleInfo(name="test_bundle", version="1.0"),
             log_path="test.log",
@@ -154,7 +155,7 @@ class TestParseCommand:
         )
         return ExecuteCallback(
             callback=callback_data,
-            dag_rel_path="test.py",
+            dag_rel_path=Path("test.py"),
             bundle_info=BundleInfo(name="test_bundle", version="1.0"),
             token="test_token",
             log_path="test.log",
