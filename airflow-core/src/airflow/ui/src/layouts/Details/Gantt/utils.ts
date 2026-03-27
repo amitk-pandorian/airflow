@@ -114,8 +114,8 @@ export const transformGanttData = ({
           return tries
             .filter((tryInstance) => tryInstance.start_date !== null)
             .map((tryInstance) => {
-              const hasTaskRunning = isStatePending(tryInstance.state);
-              const endMs = hasTaskRunning ? Date.now() : dayjs(tryInstance.end_date).valueOf();
+              const endMs =
+                tryInstance.end_date === null ? Date.now() : dayjs(tryInstance.end_date).valueOf();
 
               return {
                 isGroup: false,
