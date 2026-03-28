@@ -52,7 +52,10 @@ connection-types:
     connection-type: mq
     ui-field-behaviour:
       placeholders:
-        extra: '{"queue_manager": "QM1", "channel": "DEV.APP.SVRCONN", "open_options": cls.default_open_options}'
+        extra: |
+          {"queue_manager": "QM1",
+           "channel": "DEV.APP.SVRCONN",
+           "open_options": cls.default_open_options}
 
 queues:
   - airflow.providers.ibm.mq.queues.mq.IBMMQMessageQueueProvider
