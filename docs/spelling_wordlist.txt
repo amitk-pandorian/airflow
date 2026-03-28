@@ -297,6 +297,7 @@ ContainerPort
 contentUrl
 contextmgr
 contrib
+convertToIri
 copyable
 CoreV
 coroutine
@@ -432,6 +433,7 @@ deidentify
 DeidentifyTemplate
 del
 delim
+deliverability
 deltalake
 denylist
 dep
@@ -973,6 +975,7 @@ longblob
 lookups
 lshift
 lxml
+m-NCUs
 machineTypes
 macOS
 mae
@@ -1057,6 +1060,7 @@ nat
 natively
 nav
 navbar
+NCUs
 nd
 ndjson
 nearText
@@ -1085,9 +1089,11 @@ NotFound
 notificationChannels
 notin
 npm
+nquads
 ns
 ntlm
 ntpd
+ntriples
 Nullable
 nullable
 num
@@ -1111,6 +1117,7 @@ OnFailure
 Oozie
 openai
 openapi
+opencypher
 openfaas
 OpenID
 openlineage
@@ -1299,6 +1306,7 @@ RaG
 RBAC
 rbac
 rc
+rdfxml
 RDS
 rds
 readme
