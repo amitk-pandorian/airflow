@@ -21,7 +21,7 @@ import asyncio
 import time
 from typing import Any
 
-from airflow.providers.databricks.hooks.databricks import DatabricksHook
+from airflow.providers.databricks.hooks.databricks import DatabricksHook, SQLStatementState
 from airflow.providers.databricks.utils.databricks import extract_failed_task_errors_async
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
@@ -168,6 +168,7 @@ class DatabricksSQLStatementExecutionTrigger(BaseTrigger):
         )
 
     async def run(self):
+        statement_state = SQLStatementState(state="PENDING")
         async with self.hook:
             while self.end_time > time.time():
                 statement_state = await self.hook.a_get_sql_statement_state(self.statement_id)
@@ -197,7 +198,7 @@ class DatabricksSQLStatementExecutionTrigger(BaseTrigger):
                 return
 
             # If we reach here, it means the statement should be timed out as per the end_time.
-            self.hook.cancel_sql_statement(self.statement_id)
+            await self.hook.a_cancel_sql_statement(self.statement_id)
             yield TriggerEvent(
                 {
                     "statement_id": self.statement_id,
