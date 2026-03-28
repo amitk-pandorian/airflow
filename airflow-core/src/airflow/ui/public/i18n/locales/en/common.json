@@ -28,6 +28,7 @@
   },
   "collapseAllExtra": "Collapse all extra JSON",
   "collapseDetailsPanel": "Collapse Details Panel",
+  "completed": "Completed",
   "createdAssetEvent_one": "Created Asset Event",
   "createdAssetEvent_other": "Created Asset Events",
   "dag_one": "Dag",
@@ -239,6 +240,7 @@
     "from": "From",
     "maxActiveRuns": "Max Active Runs",
     "noTagsFound": "No tags found",
+    "progress": "Progress",
     "tagMode": {
       "all": "All",
       "any": "Any"
