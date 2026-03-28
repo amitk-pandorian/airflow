@@ -3508,6 +3508,7 @@ databaseCleanup:
   # When set, overwrite the default k8s number of successful and failed CronJob executions that are saved.
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 1
+  ttlSecondsAfterFinished: ~
 
 # Configuration for postgresql subchart
 # Uses bitnamilegacy images to avoid Bitnami licensing restrictions
