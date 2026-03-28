@@ -2093,6 +2093,13 @@ def supervise(
 
     reset_secrets_masker()
 
+    # Re-mask configuration secrets that were cleared by the reset.
+    # reset_secrets_masker() wipes all patterns from the SDK masker, including
+    # config-level secrets (webserver.secret_key, api.secret_key, etc.) that
+    # were registered at startup by the SDK config parser. Re-register them so
+    # they remain masked in task subprocess logs. See #63921.
+    conf.mask_secrets()
+
     try:
         process = ActivitySubprocess.start(
             dag_rel_path=dag_rel_path,

@@ -232,6 +232,43 @@ class TestSupervisor:
             with expectation:
                 supervise(**kw)
 
+    @pytest.mark.enable_redact
+    def test_supervise_remasks_config_secrets_after_reset(self):
+        """Config-level secrets survive reset_secrets_masker() inside supervise().
+
+        Regression test for https://github.com/apache/airflow/issues/63921
+        """
+        from airflow.sdk._shared.secrets_masker import redact, reset_secrets_masker
+        from airflow.sdk.configuration import conf
+
+        expected_secrets = {
+            ("api", "secret_key"): "shared-api-secret",
+            ("api_auth", "jwt_secret"): "jwt-super-secret",
+        }
+
+        with conf_vars(expected_secrets):
+            conf.mask_secrets()
+
+            observed_secrets = {
+                ("api", "secret_key"): conf.get("api", "secret_key", suppress_warnings=True),
+                ("webserver", "secret_key"): conf.get("webserver", "secret_key", suppress_warnings=True),
+                ("api_auth", "jwt_secret"): conf.get("api_auth", "jwt_secret", suppress_warnings=True),
+            }
+
+            for secret in observed_secrets.values():
+                assert redact(secret) == "***"
+
+            reset_secrets_masker()
+            for secret in observed_secrets.values():
+                assert redact(secret) == secret, "reset_secrets_masker should clear all patterns"
+
+            conf.mask_secrets()
+
+            for (section, key), secret in observed_secrets.items():
+                assert redact(secret) == "***", (
+                    f"Config secret {section}/{key} should be masked after conf.mask_secrets()"
+                )
+
 
 @pytest.mark.usefixtures("disable_capturing")
 class TestWatchedSubprocess:
