@@ -1510,6 +1510,7 @@ members = [
     "shared/serialization",
     "shared/template_rendering",
     "shared/timezones",
+    "scripts/ossfuzz",
     # Automatically generated provider workspace members (update_airflow_pyproject_toml.py)
     "providers/airbyte",
     "providers/alibaba",
