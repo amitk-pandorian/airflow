@@ -1860,21 +1860,24 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         self.log.debug("checking for completed backfills.")
         unfinished_states = (DagRunState.RUNNING, DagRunState.QUEUED)
         now = timezone.utcnow()
-        # todo: AIP-78 simplify this function to an update statement
-        query = select(Backfill).where(
-            Backfill.completed_at.is_(None),
-            ~exists(
-                select(DagRun.id).where(
-                    and_(DagRun.backfill_id == Backfill.id, DagRun.state.in_(unfinished_states))
+        result = cast(
+            "CursorResult",
+            session.execute(
+                update(Backfill)
+                .where(
+                    Backfill.completed_at.is_(None),
+                    ~exists(
+                        select(DagRun.id).where(
+                            and_(DagRun.backfill_id == Backfill.id, DagRun.state.in_(unfinished_states))
+                        )
+                    ),
                 )
+                .values(completed_at=now)
             ),
         )
-        backfills = list(session.scalars(query))
-        if not backfills:
-            return
-        self.log.info("marking %s backfills as complete", len(backfills))
-        for b in backfills:
-            b.completed_at = now
+
+        if result.rowcount > 0:
+            self.log.info("marking %s backfills as complete", result.rowcount)
 
     def _create_dag_runs(self, dag_models: Collection[DagModel], session: Session) -> None:
         """Create a DAG run and update the dag_model to control if/when the next DAGRun should be created."""
