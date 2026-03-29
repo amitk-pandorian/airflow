@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Tests for the post_submit_commands feature added to SparkSubmitHook.
 Issue: https://github.com/apache/airflow/issues/50958
@@ -10,6 +26,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from airflow.providers.apache.spark.hooks.spark_submit import SparkSubmitHook
+from airflow.exceptions import AirflowException
 
 
 def _make_hook(post_submit_commands=None, **extra):
@@ -154,7 +171,7 @@ class TestSubmitIntegration:
 
         with patch("subprocess.Popen", return_value=mock_proc), \
              patch.object(hook, "_run_post_submit_commands") as mock_post:
-            with pytest.raises(Exception):
+            with pytest.raises(AirflowException):
                 hook.submit("my_app.py")
             mock_post.assert_not_called()
 

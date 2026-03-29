@@ -553,10 +553,10 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
             # Fallback for older versions of Airflow
             func = kerberos.get_kerberos_principle  # type: ignore[attr-defined]
         return func(principal)
+
     def _run_post_submit_commands(self) -> None:
         """
         Run any post-submit shell commands configured on this hook.
-
         Called after the Spark job finishes (success or on_kill). Typical use case
         is killing sidecars like Istio that don't shut down automatically.
         Failures are logged as warnings and never raise.
@@ -569,7 +569,8 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    universal_newlines=True,
+                    text=True,
+                    check=False,
                     timeout=30,
                 )
                 self.log.info("Post-submit command output:\n%s", result.stdout)
