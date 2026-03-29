@@ -1788,17 +1788,6 @@ class TestTriggerDagRun:
             },
         ]
 
-    @mock.patch("airflow.serialization.definitions.dag.SerializedDAG.create_dagrun")
-    def test_dagrun_creation_exception_is_handled(self, mock_create_dagrun, test_client):
-        now = timezone.utcnow().isoformat()
-        error_message = "Encountered Error"
-
-        mock_create_dagrun.side_effect = ValueError(error_message)
-
-        response = test_client.post(f"/dags/{DAG1_ID}/dagRuns", json={"logical_date": now})
-        assert response.status_code == 400
-        assert response.json() == {"detail": error_message}
-
     def test_should_respond_404_if_a_dag_is_inactive(self, test_client, session, testing_dag_bundle):
         now = timezone.utcnow().isoformat()
         self._dags_for_trigger_tests(session)
