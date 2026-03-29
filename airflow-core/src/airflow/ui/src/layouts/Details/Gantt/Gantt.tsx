@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { Box, useToken } from "@chakra-ui/react";
+import { Box, Input, Text, useToken } from "@chakra-ui/react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -33,7 +33,7 @@ import {
 import "chart.js/auto";
 import "chartjs-adapter-dayjs-4/dist/chartjs-adapter-dayjs-4.esm";
 import annotationPlugin from "chartjs-plugin-annotation";
-import { useDeferredValue } from "react";
+import { useDeferredValue, useState } from "react";
 import { Bar } from "react-chartjs-2";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -81,6 +81,9 @@ const MIN_BAR_WIDTH = 10;
 
 export const Gantt = ({ dagRunState, limit, runType, triggeringUser }: Props) => {
   const { dagId = "", groupId: selectedGroupId, runId = "", taskId: selectedTaskId } = useParams();
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+
   const [searchParams] = useSearchParams();
   const { openGroupIds } = useOpenGroups();
   const deferredOpenGroupIds = useDeferredValue(openGroupIds);
@@ -140,8 +143,15 @@ export const Gantt = ({ dagRunState, limit, runType, triggeringUser }: Props) =>
   const summariesLoading = Boolean(runId && selectedRun && !summariesByRunId.has(runId));
 
   // Single fetch for all Gantt data (individual task tries)
+  // startDate and endDate are sent to the backend as query parameters.
+  // The server filters the data — NOT the browser.
   const { data: ganttData, isLoading: ganttLoading } = useGanttServiceGetGanttData(
-    { dagId, runId },
+    {
+      dagId,
+      runId,
+      startDate: filterStartDate ? `${filterStartDate}T00:00:00Z` : undefined,
+      endDate: filterEndDate ? `${filterEndDate}T23:59:59Z` : undefined,
+    },
     undefined,
     {
       enabled: Boolean(dagId) && Boolean(runId) && Boolean(selectedRun),
@@ -224,21 +234,70 @@ export const Gantt = ({ dagRunState, limit, runType, triggeringUser }: Props) =>
   };
 
   return (
-    <Box
-      height={`${fixedHeight}px`}
-      minW="250px"
-      ml={-2}
-      mt={`${GRID_BODY_OFFSET_PX}px`}
-      onMouseLeave={handleChartMouseLeave}
-      w="100%"
-    >
-      <Bar
-        data={chartData}
-        options={chartOptions}
-        style={{
-          paddingTop: flatNodes.length === 1 ? 15 : 1.5,
-        }}
-      />
-    </Box>
+    <>
+      {/* Date inputs that trigger a new API fetch when changed */}
+      <Box mb="4" display="flex" gap="4" alignItems="flex-end">
+        <Box display="flex" flexDirection="column">
+          <Text color="fg.muted" fontSize="xs" mb={1}>
+            {translate("startDate")}
+          </Text>
+          <Input
+            fontSize="sm"
+            fontWeight="medium"
+            maxW="200px"
+            onChange={(e) => {
+              const value = e.target.value;
+              if (filterEndDate && value > filterEndDate) {
+                alert("Start date cannot be after end date");
+                return;
+              }
+              setFilterStartDate(value);
+            }}
+            placeholder="YYYY-MM-DD"
+            size="sm"
+            type="date"
+            value={filterStartDate}
+          />
+        </Box>
+        <Box display="flex" flexDirection="column">
+          <Text color="fg.muted" fontSize="xs" mb={1}>
+            {translate("endDate")}
+          </Text>
+          <Input
+            fontSize="sm"
+            fontWeight="medium"
+            maxW="200px"
+            onChange={(e) => {
+              const value = e.target.value;
+              if (filterStartDate && value < filterStartDate) {
+                alert("End date cannot be before start date");
+                return;
+              }
+              setFilterEndDate(value);
+            }}
+            placeholder="YYYY-MM-DD"
+            size="sm"
+            type="date"
+            value={filterEndDate}
+          />
+        </Box>
+      </Box>
+      <Box
+        height={`${fixedHeight}px`}
+        minW="250px"
+        ml={-2}
+        mt={`${GRID_BODY_OFFSET_PX}px`}
+        onMouseLeave={handleChartMouseLeave}
+        w="100%"
+      >
+        <Bar
+          data={chartData}
+          options={chartOptions}
+          style={{
+            paddingTop: flatNodes.length === 1 ? 15 : 1.5,
+          }}
+        />
+      </Box>
+    </>
   );
 };
