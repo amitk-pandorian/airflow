@@ -18,10 +18,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { Box, HStack, Flex, useDisclosure, IconButton } from "@chakra-ui/react";
+import { Box, Flex, HStack, IconButton, useDisclosure } from "@chakra-ui/react";
 import { useReactFlow } from "@xyflow/react";
 import { useRef, useState } from "react";
-import type { PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { LuFileWarning } from "react-icons/lu";
@@ -51,11 +51,10 @@ import {
   runAfterGteKey,
   runAfterLteKey,
   runTypeFilterKey,
-  showGanttKey,
   triggeringUserFilterKey,
 } from "src/constants/localStorage";
 import { VersionIndicatorOptions } from "src/constants/showVersionIndicatorOptions";
-import { HoverProvider } from "src/context/hover";
+import { HoverProvider, useHover } from "src/context/hover";
 import { OpenGroupsProvider } from "src/context/openGroups";
 
 import { DagBreadcrumb } from "./DagBreadcrumb";
@@ -64,6 +63,33 @@ import { Graph } from "./Graph";
 import { Grid } from "./Grid";
 import { NavTabs } from "./NavTabs";
 import { PanelButtons } from "./PanelButtons";
+
+// Separate component so useHover can be called inside HoverProvider.
+const SharedScrollBox = ({
+  children,
+  scrollRef,
+}: {
+  readonly children: ReactNode;
+  readonly scrollRef: RefObject<HTMLDivElement | null>;
+}) => {
+  const { setHoveredTaskId } = useHover();
+
+  return (
+    <Box
+      height="100%"
+      minH={0}
+      minW={0}
+      onMouseLeave={() => setHoveredTaskId(undefined)}
+      overflowX="hidden"
+      overflowY="auto"
+      ref={scrollRef}
+      style={{ scrollbarGutter: "stable" }}
+      w="100%"
+    >
+      {children}
+    </Box>
+  );
+};
 
 type Props = {
   readonly error?: unknown;
@@ -77,7 +103,10 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
   const { data: dag } = useDagServiceGetDag({ dagId });
   const [defaultDagView] = useLocalStorage<"graph" | "grid">(DEFAULT_DAG_VIEW_KEY, "grid");
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null);
-  const [dagView, setDagView] = useLocalStorage<"graph" | "grid">(dagViewKey(dagId), defaultDagView);
+  const [dagView, setDagView] = useLocalStorage<"gantt" | "graph" | "grid">(
+    dagViewKey(dagId),
+    defaultDagView,
+  );
   const [limit, setLimit] = useLocalStorage<number>(dagRunsLimitKey(dagId), 10);
   const [runAfterGte, setRunAfterGte] = useLocalStorage<string | undefined>(runAfterGteKey(dagId), undefined);
   const [runAfterLte, setRunAfterLte] = useLocalStorage<string | undefined>(runAfterLteKey(dagId), undefined);
@@ -94,7 +123,6 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
     undefined,
   );
 
-  const [showGantt, setShowGantt] = useLocalStorage<boolean>(showGanttKey(dagId), false);
   // Global setting: applies to all Dags (intentionally not scoped to dagId)
   const [showVersionIndicatorMode, setShowVersionIndicatorMode] = useLocalStorage<VersionIndicatorOptions>(
     `version_indicator_display_mode`,
@@ -106,6 +134,9 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const { i18n } = useTranslation();
   const direction = i18n.dir();
+  const sharedGridGanttScrollRef = useRef<HTMLDivElement | null>(null);
+  // Treat "gantt" as "grid" for panel layout persistence so switching between them doesn't reset sizes.
+  const panelViewKey = dagView === "gantt" ? "grid" : dagView;
 
   return (
     <HoverProvider>
@@ -149,19 +180,19 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
             </Tooltip>
           ) : undefined}
           <PanelGroup
-            autoSaveId={`${dagView}-${direction}`}
+            autoSaveId={`${panelViewKey}-${direction}`}
             dir={direction}
             direction="horizontal"
-            key={`${dagView}-${direction}`}
+            key={`${panelViewKey}-${direction}`}
             ref={panelGroupRef}
           >
             <Panel
               defaultSize={dagView === "graph" ? 70 : 20}
               id="main-panel"
-              minSize={showGantt && dagView === "grid" && Boolean(runId) ? 35 : 6}
+              minSize={dagView === "gantt" && Boolean(runId) ? 35 : 6}
               order={1}
             >
-              <Box height="100%" position="relative">
+              <Flex flexDirection="column" height="100%">
                 <PanelButtons
                   dagRunStateFilter={dagRunStateFilter}
                   dagView={dagView}
@@ -176,38 +207,60 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
                   setRunAfterGte={setRunAfterGte}
                   setRunAfterLte={setRunAfterLte}
                   setRunTypeFilter={setRunTypeFilter}
-                  setShowGantt={setShowGantt}
                   setShowVersionIndicatorMode={setShowVersionIndicatorMode}
                   setTriggeringUserFilter={setTriggeringUserFilter}
-                  showGantt={showGantt}
                   showVersionIndicatorMode={showVersionIndicatorMode}
                   triggeringUserFilter={triggeringUserFilter}
                 />
-                {dagView === "graph" ? (
-                  <Graph />
-                ) : (
-                  <HStack alignItems="flex-start" gap={0}>
-                    <Grid
-                      dagRunState={dagRunStateFilter}
-                      limit={limit}
-                      runAfterGte={runAfterGte}
-                      runAfterLte={runAfterLte}
-                      runType={runTypeFilter}
-                      showGantt={Boolean(runId) && showGantt}
-                      showVersionIndicatorMode={showVersionIndicatorMode}
-                      triggeringUser={triggeringUserFilter}
-                    />
-                    {showGantt ? (
-                      <Gantt
+                <Box flex={1} minH={0} overflow="hidden">
+                  {dagView === "graph" ? (
+                    <Graph />
+                  ) : dagView === "gantt" && Boolean(runId) ? (
+                    <SharedScrollBox scrollRef={sharedGridGanttScrollRef}>
+                      <Flex alignItems="flex-start" gap={0} maxW="100%" minW={0} overflow="clip" w="100%">
+                        <Grid
+                          dagRunState={dagRunStateFilter}
+                          limit={limit}
+                          runAfterGte={runAfterGte}
+                          runAfterLte={runAfterLte}
+                          runType={runTypeFilter}
+                          sharedScrollContainerRef={sharedGridGanttScrollRef}
+                          showGantt
+                          showVersionIndicatorMode={showVersionIndicatorMode}
+                          triggeringUser={triggeringUserFilter}
+                        />
+                        <Gantt
+                          dagRunState={dagRunStateFilter}
+                          limit={limit}
+                          runType={runTypeFilter}
+                          sharedScrollContainerRef={sharedGridGanttScrollRef}
+                          triggeringUser={triggeringUserFilter}
+                        />
+                      </Flex>
+                    </SharedScrollBox>
+                  ) : (
+                    <HStack
+                      alignItems="flex-start"
+                      gap={0}
+                      height="100%"
+                      maxW="100%"
+                      minW={0}
+                      overflow="hidden"
+                      w="100%"
+                    >
+                      <Grid
                         dagRunState={dagRunStateFilter}
                         limit={limit}
+                        runAfterGte={runAfterGte}
+                        runAfterLte={runAfterLte}
                         runType={runTypeFilter}
+                        showVersionIndicatorMode={showVersionIndicatorMode}
                         triggeringUser={triggeringUserFilter}
                       />
-                    ) : undefined}
-                  </HStack>
-                )}
-              </Box>
+                    </HStack>
+                  )}
+                </Box>
+              </Flex>
             </Panel>
             {!isRightPanelCollapsed && (
               <>
@@ -230,7 +283,6 @@ export const DetailsLayout = ({ children, error, isLoading, tabs }: Props) => {
                     justifyContent="center"
                     position="relative"
                     w={0.5}
-                    // onClick={(e) => console.log(e)}
                   />
                 </PanelResizeHandle>
 
