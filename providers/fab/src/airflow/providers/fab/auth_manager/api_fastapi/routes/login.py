@@ -38,6 +38,7 @@ if AIRFLOW_V_3_1_8_PLUS:
 else:
     get_cookie_path = lambda: "/"
 
+
 def _get_flask_app():
     auth_manager = cast("FabAuthManager", get_auth_manager())
     if not auth_manager.flask_app:
