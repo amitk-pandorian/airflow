@@ -2309,7 +2309,7 @@
                     }
                 },
                 "extraPorts": {
-                    "description": "Expose additional ports of Airflow Celery worker container.",
+                    "description": "Expose additional ports of Airflow Celery worker container (deprecated, use `workers.celery.extraPorts` instead).",
                     "type": "array",
                     "default": [],
                     "items": {
@@ -2381,7 +2381,7 @@
                     }
                 },
                 "hostAliases": {
-                    "description": "Specify HostAliases for Airflow Celery worker pods and pods created with pod-template-file.",
+                    "description": "Specify HostAliases for Airflow Celery worker pods and pods created with pod-template-file (deprecated, use ``workers.celery.hostAliases`` and/or ``workers.kubernetes.hostAliases`` instead).",
                     "items": {
                         "$ref": "#/definitions/io.k8s.api.core.v1.HostAlias"
                     },
@@ -3294,6 +3294,14 @@
                             ],
                             "default": null
                         },
+                        "extraPorts": {
+                            "description": "Expose additional ports of Airflow Celery worker container.",
+                            "type": "array",
+                            "default": [],
+                            "items": {
+                                "$ref": "#/definitions/io.k8s.api.core.v1.ContainerPort"
+                            }
+                        },
                         "nodeSelector": {
                             "description": "Select certain nodes for Airflow Celery worker pods.",
                             "type": "object",
@@ -3301,6 +3309,28 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        },
+                        "hostAliases": {
+                            "description": "Specify HostAliases for Airflow Celery worker pods.",
+                            "items": {
+                                "$ref": "#/definitions/io.k8s.api.core.v1.HostAlias"
+                            },
+                            "type": "array",
+                            "default": [],
+                            "examples": [
+                                {
+                                    "ip": "127.0.0.2",
+                                    "hostnames": [
+                                        "test.hostname.one"
+                                    ]
+                                },
+                                {
+                                    "ip": "127.0.0.3",
+                                    "hostnames": [
+                                        "test.hostname.two"
+                                    ]
+                                }
+                            ]
                         }
                     }
                 },
@@ -3598,6 +3628,28 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        },
+                        "hostAliases": {
+                            "description": "Specify HostAliases for pods created with pod-template-file.",
+                            "items": {
+                                "$ref": "#/definitions/io.k8s.api.core.v1.HostAlias"
+                            },
+                            "type": "array",
+                            "default": [],
+                            "examples": [
+                                {
+                                    "ip": "127.0.0.2",
+                                    "hostnames": [
+                                        "test.hostname.one"
+                                    ]
+                                },
+                                {
+                                    "ip": "127.0.0.3",
+                                    "hostnames": [
+                                        "test.hostname.two"
+                                    ]
+                                }
+                            ]
                         }
                     }
                 }
