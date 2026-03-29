@@ -1081,6 +1081,7 @@ nohup
 nonnegative
 nonterminal
 noqa
+Normalises
 normalizer
 NotFound
 notificationChannels
@@ -1123,6 +1124,7 @@ Opsgenie
 opsgenie
 Optimise
 optimise
+optimised
 optimizationObjective
 optionality
 ora
@@ -1422,6 +1424,8 @@ sentimentMax
 ser
 serde
 serialise
+Serialised
+serialised
 serializable
 SerializedDAG
 serializer
