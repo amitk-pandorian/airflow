@@ -154,9 +154,20 @@ export class ConnectionsPage extends BasePage {
     await expect(deleteButton).toBeEnabled({ timeout: 5000 });
     await deleteButton.click();
 
-    await expect(this.confirmDeleteButton).toBeVisible({ timeout: 10_000 });
-    await expect(this.confirmDeleteButton).toBeEnabled({ timeout: 5000 });
-    await this.confirmDeleteButton.click();
+    // Wait for the dialog root to appear in the DOM before interacting with the
+    // confirm button. Without this, Playwright's click delivery races with
+    // Chakra UI/Ark UI's "click outside" handler: the mousedown opens the dialog,
+    // the dialog renders its backdrop, and the mouseup lands on the backdrop and
+    // immediately closes it. Waiting for [role="dialog"] ensures we only proceed
+    // once the dialog is fully mounted and stable.
+    const deleteDialog = this.page.locator('[role="dialog"]');
+
+    await deleteDialog.waitFor({ state: "visible", timeout: 10_000 });
+    const confirmButton = deleteDialog.getByRole("button", { name: "Yes, Delete" });
+
+    await expect(confirmButton).toBeVisible({ timeout: 5000 });
+    await expect(confirmButton).toBeEnabled({ timeout: 5000 });
+    await confirmButton.click();
 
     await expect(this.getConnectionRow(connectionId)).not.toBeVisible({ timeout: 15_000 });
   }
