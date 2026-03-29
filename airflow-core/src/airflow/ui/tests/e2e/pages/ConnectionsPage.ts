@@ -168,6 +168,11 @@ export class ConnectionsPage extends BasePage {
     // Wait for form to be fully populated with existing connection data before interacting
     await expect(this.connectionIdInput).toHaveValue(connectionId, { timeout: 10_000 });
 
+    // Wait for the form to stabilize — React re-renders the conn_type combobox as
+    // existing connection data loads from the API, which causes "detached from DOM"
+    // errors if we interact with it too early.
+    await this.page.waitForLoadState("networkidle", { timeout: 10_000 });
+
     // Fill the fields that need updating
     await this.fillConnectionForm(updates);
     await this.saveConnection();
@@ -180,11 +185,13 @@ export class ConnectionsPage extends BasePage {
     }
 
     if (details.conn_type !== undefined && details.conn_type !== "") {
-      // Click the select field to open the dropdown
-      const selectCombobox = this.page.getByRole("combobox").first();
+      // Scope the combobox to the form dialog to avoid matching stale elements
+      // outside the form. Use click() directly — Playwright retries until the
+      // element is visible, enabled, and stable, avoiding the "detached from DOM"
+      // race that occurs when toBeEnabled() passes but the node is replaced before click().
+      const selectCombobox = this.connectionForm.getByRole("combobox").first();
 
-      await expect(selectCombobox).toBeEnabled({ timeout: 25_000 });
-      await selectCombobox.click();
+      await selectCombobox.click({ timeout: 25_000 });
 
       // Wait for options to appear and click the matching option
       const option = this.page.getByRole("option", { name: new RegExp(details.conn_type, "i") }).first();
