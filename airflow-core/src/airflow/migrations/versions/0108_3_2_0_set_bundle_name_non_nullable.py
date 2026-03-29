@@ -39,8 +39,16 @@ airflow_version = "3.2.1"
 
 def upgrade():
     """Set bundle_name to 'dags-folder' for legacy DAGs with NULL bundle_name and make column non-nullable."""
-    op.execute("UPDATE dag SET bundle_name = 'dags-folder' WHERE bundle_name IS NULL")
-    with op.batch_alter_table("dag", schema=None) as batch_op:
+    dag = sa.table(
+        "dag",
+        sa.column("bundle_name", sa.String(length=200)),
+    )
+    op.execute(
+        dag.update()
+        .where(dag.c.bundle_name.is_(None))
+        .values(bundle_name="dags-folder")
+    )
+    with op.batch_alter_table("dag") as batch_op:
         batch_op.alter_column(
             "bundle_name",
             existing_type=sa.String(length=200),
