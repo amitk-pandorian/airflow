@@ -9,7 +9,7 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing,
+# Unless required by applicable law or agreed to in writing,h
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
@@ -19,7 +19,7 @@
 Set bundle_name non-nullable for legacy DAGs upgraded from 2.x.
 
 Revision ID: 35ab6b577738
-Revises: 6222ce48e289
+Revises: 1d6611b6ab7c
 Create Date: 2026-03-05 00:00:00.000000
 """
 
@@ -30,7 +30,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "35ab6b577738"
-down_revision = "6222ce48e289"
+down_revision = "1d6611b6ab7c"
 branch_labels = None
 depends_on = None
 
