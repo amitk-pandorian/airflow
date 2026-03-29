@@ -98,6 +98,8 @@ If you want to implement your own backend, you should subclass :class:`~airflow.
 
 You can override the ``purge`` method in the ``BaseXCom`` class to have control over purging the XCom data from the custom backend. This will be called as part of ``delete``.
 
+**Scheduler and non-task context:** ``deserialize_value`` may be called from the scheduler when evaluating task dependencies (for example branch/skip rules for operators that inherit from SkipMixin). In that context there is no running task, so task-scoped connection resolution or credentials may not be available. Custom backends should therefore ensure that ``deserialize_value`` can be called safely outside task execution and still preserve the logical value expected by the caller. In particular, scheduler-side consumers use SkipMixin XComs to decide whether downstream tasks should run, so returning an opaque reference or placeholder instead of the stored logical value can break that decision-making.
+
 Verifying Custom XCom Backend usage in Containers
 -------------------------------------------------
 
