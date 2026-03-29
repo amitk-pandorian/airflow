@@ -364,12 +364,14 @@ class AssetManager(LoggingMixin):
         # mapped) tasks update the same asset, this can fail with a unique
         # constraint violation.
         #
-        # If we support it, use ON CONFLICT to do nothing, otherwise
+        # If we support it, use ON CONFLICT to update, otherwise
         # "fallback" to running this in a nested transaction. This is needed
         # so that the adding of these rows happens in the same transaction
         # where `ti.state` is changed.
         if get_dialect_name(session) == "postgresql":
             return cls._queue_dagruns_nonpartitioned_postgres(asset_id, non_partitioned_dags, event, session)
+        if get_dialect_name(session) == "mysql":
+            return cls._queue_dagruns_nonpartitioned_mysql(asset_id, non_partitioned_dags, event, session)
         return cls._queue_dagruns_nonpartitioned_slow_path(asset_id, non_partitioned_dags, event, session)
 
     @classmethod
@@ -557,6 +559,24 @@ class AssetManager(LoggingMixin):
         queued_results = (_queue_dagrun_if_needed(dag) for dag in dags_to_queue)
         if queued_dag_ids := [r for r in queued_results if r is not None]:
             cls.logger().debug("consuming dag ids %s", queued_dag_ids)
+
+    @classmethod
+    def _queue_dagruns_nonpartitioned_mysql(
+        cls, asset_id: int, dags_to_queue: set[DagModel], event: AssetEvent, session: Session
+    ) -> None:
+        from sqlalchemy import case
+        from sqlalchemy.dialects.mysql import insert
+
+        values = [{"target_dag_id": dag.dag_id} for dag in dags_to_queue]
+        stmt = insert(AssetDagRunQueue).values(asset_id=asset_id, created_at=event.timestamp)
+
+        update_stmt = stmt.on_duplicate_key_update(
+            created_at=case(
+                (stmt.inserted.created_at >= AssetDagRunQueue.created_at, stmt.inserted.created_at),
+                else_=AssetDagRunQueue.created_at,
+            )
+        )
+        session.execute(update_stmt, values)
 
     @classmethod
     def _queue_dagruns_nonpartitioned_postgres(
