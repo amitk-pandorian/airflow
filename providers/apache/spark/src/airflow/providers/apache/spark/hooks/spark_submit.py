@@ -551,7 +551,7 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
             func = kerberos.get_kerberos_principal
         except AttributeError:
             # Fallback for older versions of Airflow
-            func = kerberos.get_kerberos_principle  # type: ignore[attr-defined]
+            func = getattr(kerberos, "get_kerberos_principle")
         return func(principal)
 
     def _run_post_submit_commands(self) -> None:
@@ -867,3 +867,5 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
                     self.log.exception("Exception when attempting to kill Spark on K8s")
                 
         self._run_post_submit_commands()
+
+
