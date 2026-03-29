@@ -1,0 +1,1 @@
+Fix premature asset-triggered DagRuns when ``AssetDagRunQueue`` had rows but ``SerializedDagModel`` was not yet available; the scheduler now skips those DAGs until serialization exists.
