@@ -739,25 +739,22 @@ class ElasticsearchRemoteLogIO(LoggingMixin):  # noqa: D101
 
         index_patterns = self._get_index_patterns(ti)
         try:
-            max_log_line = self.client.count(index=index_patterns, query=query)["count"]
+            res = self.client.search(
+                index=index_patterns,
+                query=query,
+                sort=[self.offset_field],
+                size=self.MAX_LINE_PER_PAGE,
+                from_=self.MAX_LINE_PER_PAGE * self.PAGE,
+            )
         except NotFoundError as e:
             self.log.exception("The target index pattern %s does not exist", index_patterns)
             raise e
+        except Exception as err:
+            self.log.exception("Could not read log with log_id: %s. Exception: %s", log_id, err)
+            return None
 
-        if max_log_line != 0:
-            try:
-                res = self.client.search(
-                    index=index_patterns,
-                    query=query,
-                    sort=[self.offset_field],
-                    size=self.MAX_LINE_PER_PAGE,
-                    from_=self.MAX_LINE_PER_PAGE * self.PAGE,
-                )
-                return ElasticSearchResponse(self, res)
-            except Exception as err:
-                self.log.exception("Could not read log with log_id: %s. Exception: %s", log_id, err)
-
-        return None
+        response = ElasticSearchResponse(self, res)
+        return response if response.hits else None
 
     def _get_index_patterns(self, ti: RuntimeTI | None) -> str:
         """
