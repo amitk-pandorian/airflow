@@ -25,14 +25,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from airflow.providers.apache.spark.hooks.spark_submit import SparkSubmitHook
 from airflow.exceptions import AirflowException
+from airflow.providers.apache.spark.hooks.spark_submit import SparkSubmitHook
 
 
 def _make_hook(post_submit_commands=None, **extra):
     """Build a SparkSubmitHook with a mocked connection."""
-    with patch.object(SparkSubmitHook, "_resolve_connection") as mock_conn, \
-         patch.object(SparkSubmitHook, "_resolve_should_track_driver_status", return_value=False):
+    with (
+        patch.object(SparkSubmitHook, "_resolve_connection") as mock_conn,
+        patch.object(SparkSubmitHook, "_resolve_should_track_driver_status", return_value=False),
+    ):
         mock_conn.return_value = {
             "master": "local",
             "queue": None,
@@ -155,8 +157,10 @@ class TestSubmitIntegration:
         mock_proc.stdout = iter(["log line 1\n"])
         mock_proc.wait.return_value = 0
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(hook, "_run_post_submit_commands") as mock_post:
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(hook, "_run_post_submit_commands") as mock_post,
+        ):
             hook.submit("my_app.py")
             mock_post.assert_called_once()
 
@@ -170,8 +174,10 @@ class TestSubmitIntegration:
         mock_proc.stdout = iter([])
         mock_proc.wait.return_value = 1
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(hook, "_run_post_submit_commands") as mock_post:
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(hook, "_run_post_submit_commands") as mock_post,
+        ):
             with pytest.raises(AirflowException):
                 hook.submit("my_app.py")
             mock_post.assert_not_called()
