@@ -868,4 +868,3 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
                     self.log.exception("Exception when attempting to kill Spark on K8s")
 
         self._run_post_submit_commands()
-

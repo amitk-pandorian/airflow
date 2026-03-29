@@ -32,7 +32,7 @@ from airflow.providers.apache.spark.hooks.spark_submit import SparkSubmitHook
 
 def _make_hook(post_submit_commands=None, **extra):
     """Build a SparkSubmitHook with a mocked connection."""
-    
+
     with (
         patch.object(SparkSubmitHook, "_resolve_connection") as mock_conn,
         patch.object(SparkSubmitHook, "_resolve_should_track_driver_status", return_value=False),
