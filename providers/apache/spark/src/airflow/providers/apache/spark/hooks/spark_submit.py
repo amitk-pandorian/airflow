@@ -557,6 +557,7 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
     def _run_post_submit_commands(self) -> None:
         """
         Run any post-submit shell commands configured on this hook.
+
         Called after the Spark job finishes (success or on_kill). Typical use case
         is killing sidecars like Istio that don't shut down automatically.
         Failures are logged as warnings and never raise.
@@ -865,7 +866,6 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
 
                 except kube_client.ApiException:
                     self.log.exception("Exception when attempting to kill Spark on K8s")
-                
-        self._run_post_submit_commands()
 
+        self._run_post_submit_commands()
 

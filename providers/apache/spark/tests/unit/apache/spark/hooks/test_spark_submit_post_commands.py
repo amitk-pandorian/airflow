@@ -80,7 +80,8 @@ class TestSingleCommand:
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                universal_newlines=True,
+                text=True,
+                check=False,
                 timeout=30,
             )
 
@@ -197,3 +198,4 @@ class TestBackwardCompatibility:
     def test_none_is_treated_as_empty(self):
         hook = _make_hook(post_submit_commands=None)
         assert hook._post_submit_commands == []
+
