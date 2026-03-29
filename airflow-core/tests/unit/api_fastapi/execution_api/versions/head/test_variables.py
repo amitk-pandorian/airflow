@@ -261,7 +261,7 @@ class TestDeleteVariable:
 
         response = client.delete(f"/execution/variables/{key_to_delete}")
 
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         vars = session.scalars(select(Variable)).all()
         assert len(vars) == len(keys_to_create) - 1
@@ -274,7 +274,7 @@ class TestDeleteVariable:
 
         response = client.delete("/execution/variables/non_existent_key")
 
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         vars = session.scalars(select(Variable)).all()
         assert len(vars) == 1

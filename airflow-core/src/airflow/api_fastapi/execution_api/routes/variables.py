@@ -22,6 +22,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 
+from airflow.api_fastapi.execution_api.datamodels.common import MessageResponse
 from airflow.api_fastapi.execution_api.datamodels.variable import (
     VariablePostBody,
     VariableResponse,
@@ -93,15 +94,14 @@ def put_variable(
     variable_key: Annotated[str, Path(min_length=1)],
     body: VariablePostBody,
     team_name: Annotated[str | None, Depends(get_team_name_dep)],
-):
+) -> MessageResponse:
     """Set an Airflow Variable."""
     Variable.set(key=variable_key, value=body.value, description=body.description, team_name=team_name)
-    return {"message": "Variable successfully set"}
+    return MessageResponse(message="Variable successfully set")
 
 
 @router.delete(
     "/{variable_key:path}",
-    status_code=status.HTTP_204_NO_CONTENT,
     responses={
         status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized"},
         status.HTTP_403_FORBIDDEN: {"description": "Task does not have access to the variable"},
@@ -110,6 +110,7 @@ def put_variable(
 def delete_variable(
     variable_key: Annotated[str, Path(min_length=1)],
     team_name: Annotated[str | None, Depends(get_team_name_dep)],
-):
+) -> MessageResponse:
     """Delete an Airflow Variable."""
     Variable.delete(key=variable_key, team_name=team_name)
+    return MessageResponse(message=f"Variable with key {variable_key} successfully deleted.")
