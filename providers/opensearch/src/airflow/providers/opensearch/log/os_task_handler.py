@@ -774,7 +774,7 @@ class OpensearchRemoteLogIO(LoggingMixin):  # noqa: D101
     write_to_opensearch: bool = False
     delete_local_copy: bool = False
     host: str = "localhost"
-    port: int = 9200
+    port: int | None = 9200
     username: str = ""
     password: str = ""
     host_field: str = "host"

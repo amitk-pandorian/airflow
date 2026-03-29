@@ -115,7 +115,7 @@ def get_provider_info():
                         "example": None,
                         "default": "False",
                     },
-                    "write_to_opensearch": {
+                    "write_to_os": {
                         "description": "Write the task logs directly to OpenSearch\n",
                         "version_added": "1.8.6",
                         "type": "string",
