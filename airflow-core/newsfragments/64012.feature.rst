@@ -1,0 +1,1 @@
+Standardize Airflow contributor workflows for AI agents using the agentskills.io specification. Implements environment-aware routing between Host and Breeze contexts for task execution and static checks.
