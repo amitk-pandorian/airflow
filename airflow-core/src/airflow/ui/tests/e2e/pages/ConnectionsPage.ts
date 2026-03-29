@@ -191,7 +191,9 @@ export class ConnectionsPage extends BasePage {
       // race that occurs when toBeEnabled() passes but the node is replaced before click().
       const selectCombobox = this.connectionForm.getByRole("combobox").first();
 
-      await selectCombobox.click({ timeout: 25_000 });
+      await expect(selectCombobox).toBeEnabled({ timeout: 25_000 });
+
+      await selectCombobox.click({ timeout: 10_000 });
 
       // Wait for options to appear and click the matching option
       const option = this.page.getByRole("option", { name: new RegExp(details.conn_type, "i") }).first();
