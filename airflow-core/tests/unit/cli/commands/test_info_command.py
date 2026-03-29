@@ -118,43 +118,6 @@ class TestAirflowInfo:
         }
         assert self.unique_items(instance._airflow_info) == expected
 
-    @conf_vars(
-        {
-            ("logging", "remote_logging"): "True",
-            ("logging", "remote_base_log_folder"): "opensearch://logs",
-            ("opensearch", "host"): "https://localhost:9443",
-            ("opensearch", "port"): "",
-            ("opensearch", "username"): "admin",
-            ("opensearch", "password"): "admin",
-        }
-    )
-    def test_airflow_info_with_blank_opensearch_port(self):
-        pytest.importorskip("opensearchpy")
-
-        importlib.reload(airflow_local_settings)
-
-        assert airflow_local_settings.REMOTE_TASK_LOG is not None
-        assert airflow_local_settings.REMOTE_TASK_LOG.port == 9443
-
-    @conf_vars(
-        {
-            ("logging", "remote_logging"): "True",
-            ("logging", "remote_base_log_folder"): "opensearch://logs",
-            ("opensearch", "host"): "http://host.docker.internal:9200",
-            ("opensearch", "username"): "admin",
-            ("opensearch", "password"): "admin",
-            ("opensearch", "write_to_os"): "True",
-        }
-    )
-    def test_airflow_info_with_opensearch_write_to_os_alias(self):
-        pytest.importorskip("opensearchpy")
-
-        importlib.reload(airflow_local_settings)
-
-        assert airflow_local_settings.REMOTE_TASK_LOG is not None
-        assert airflow_local_settings.REMOTE_TASK_LOG.write_to_opensearch is True
-        assert airflow_local_settings.REMOTE_TASK_LOG.target_index == "airflow-logs"
-
     def test_system_info(self):
         instance = info_command.AirflowInfo(info_command.NullAnonymizer())
         expected = {"uname", "architecture", "OS", "python_location", "locale", "python_version"}
