@@ -2881,6 +2881,7 @@ class TestVertexAIRunPipelineJobOperator:
             service_account="",
             network="",
             create_request_timeout=None,
+            reserved_ip_ranges=None,
             experiment=None,
         )
         op.execute(context={"ti": mock.MagicMock(), "task": mock.MagicMock()})
@@ -2901,6 +2902,7 @@ class TestVertexAIRunPipelineJobOperator:
             service_account="",
             network="",
             create_request_timeout=None,
+            reserved_ip_ranges=None,
             experiment=None,
         )
 
