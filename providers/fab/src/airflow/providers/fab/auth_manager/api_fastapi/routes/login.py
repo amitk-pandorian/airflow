@@ -16,7 +16,10 @@
 # under the License.
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from airflow.providers.fab.auth_manager.fab_auth_manager import FabAuthManager
 
 from fastapi import Body, Request, status
 from fastapi.responses import RedirectResponse
@@ -28,13 +31,19 @@ from airflow.providers.common.compat.sdk import conf
 from airflow.providers.fab.auth_manager.api_fastapi.datamodels.login import LoginResponse
 from airflow.providers.fab.auth_manager.api_fastapi.routes.router import auth_router
 from airflow.providers.fab.auth_manager.api_fastapi.services.login import FABAuthManagerLogin
-from airflow.providers.fab.auth_manager.cli_commands.utils import get_application_builder
 from airflow.providers.fab.version_compat import AIRFLOW_V_3_1_8_PLUS
 
 if AIRFLOW_V_3_1_8_PLUS:
     from airflow.api_fastapi.app import get_cookie_path
 else:
     get_cookie_path = lambda: "/"
+
+
+def _get_flask_app():
+    auth_manager = cast("FabAuthManager", get_auth_manager())
+    if not auth_manager.flask_app:
+        raise RuntimeError("Flask app must be initialized")
+    return auth_manager.flask_app
 
 
 @auth_router.post(
@@ -45,7 +54,7 @@ else:
 )
 def create_token(request: Request, body: dict[str, Any] = Body(...)) -> LoginResponse:
     """Generate a new API token."""
-    with get_application_builder():
+    with _get_flask_app().app_context():
         return FABAuthManagerLogin.create_token(headers=dict(request.headers), body=body)
 
 
@@ -57,7 +66,7 @@ def create_token(request: Request, body: dict[str, Any] = Body(...)) -> LoginRes
 )
 def create_token_cli(request: Request, body: dict[str, Any] = Body(...)) -> LoginResponse:
     """Generate a new CLI API token."""
-    with get_application_builder():
+    with _get_flask_app().app_context():
         return FABAuthManagerLogin.create_token(
             headers=dict(request.headers),
             body=body,
@@ -71,7 +80,7 @@ def create_token_cli(request: Request, body: dict[str, Any] = Body(...)) -> Logi
 )
 def logout(request: Request) -> RedirectResponse:
     """Generate a new API token."""
-    with get_application_builder():
+    with _get_flask_app().app_context():
         login_url = get_auth_manager().get_url_login()
         secure = request.base_url.scheme == "https" or bool(conf.get("api", "ssl_cert", fallback=""))
         cookie_path = get_cookie_path()
