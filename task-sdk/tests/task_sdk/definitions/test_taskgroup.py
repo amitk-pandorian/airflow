@@ -223,6 +223,24 @@ def test_build_task_group_with_prefix():
     assert group4.get_child_by_label("task4") == task4
 
 
+def test_taskgroup_getitem_returns_child_by_label():
+    """Tests that TaskGroup[label] returns the correct child task or subgroup."""
+    logical_date = pendulum.parse("20200101")
+    with DAG("test_getitem", start_date=logical_date):
+        with TaskGroup("group1") as group1:
+            task1 = EmptyOperator(task_id="task1")
+            with TaskGroup("subgroup") as subgroup:
+                task2 = EmptyOperator(task_id="task2")
+
+    assert group1["task1"] == task1
+    assert group1["subgroup"] == subgroup
+    assert subgroup["task2"] == task2
+
+    # Missing label raises KeyError
+    with pytest.raises(KeyError):
+        group1["nonexistent"]
+
+
 def test_build_task_group_with_prefix_functionality():
     """
     Tests TaskGroup prefix_group_id functionality - additional test for comprehensive coverage.
