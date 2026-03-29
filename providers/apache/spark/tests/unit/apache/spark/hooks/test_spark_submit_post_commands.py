@@ -18,6 +18,7 @@
 Tests for the post_submit_commands feature added to SparkSubmitHook.
 Issue: https://github.com/apache/airflow/issues/50958
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -31,6 +32,7 @@ from airflow.providers.apache.spark.hooks.spark_submit import SparkSubmitHook
 
 def _make_hook(post_submit_commands=None, **extra):
     """Build a SparkSubmitHook with a mocked connection."""
+    
     with (
         patch.object(SparkSubmitHook, "_resolve_connection") as mock_conn,
         patch.object(SparkSubmitHook, "_resolve_should_track_driver_status", return_value=False),
@@ -204,4 +206,3 @@ class TestBackwardCompatibility:
     def test_none_is_treated_as_empty(self):
         hook = _make_hook(post_submit_commands=None)
         assert hook._post_submit_commands == []
-
