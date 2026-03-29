@@ -92,6 +92,7 @@ from airflow.utils.session import NEW_SESSION, provide_session
 
 if TYPE_CHECKING:
     from flask import Flask
+
     from airflow.api_fastapi.auth.managers.base_auth_manager import ResourceMethod
     from airflow.cli.cli_config import (
         CLICommand,
