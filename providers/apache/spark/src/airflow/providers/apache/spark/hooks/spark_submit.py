@@ -94,6 +94,10 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
                         (will overwrite any deployment mode defined in the connection's extra JSON)
     :param use_krb5ccache: if True, configure spark to use ticket cache instead of relying
         on keytab for Kerberos login
+    :param post_submit_commands: Optional list of shell commands to run after the Spark
+        job finishes (on both success and on_kill). Useful for cleaning up sidecars such
+        as Istio (e.g. ``["curl -X POST localhost:15020/quitquitquit"]``). Each command
+        is executed via the shell; failures produce a warning but do not fail the task.
     """
 
     conn_name_attr = "conn_id"
@@ -189,6 +193,7 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
         deploy_mode: str | None = None,
         *,
         use_krb5ccache: bool = False,
+        post_submit_commands: list[str] | None = None,
     ) -> None:
         super().__init__()
         self._conf = conf or {}
@@ -237,6 +242,7 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
         self._driver_status: str | None = None
         self._spark_exit_code: int | None = None
         self._env: dict[str, Any] | None = None
+        self._post_submit_commands: list[str] = post_submit_commands or []
 
     def _resolve_should_track_driver_status(self) -> bool:
         """
@@ -545,8 +551,40 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
             func = kerberos.get_kerberos_principal
         except AttributeError:
             # Fallback for older versions of Airflow
-            func = kerberos.get_kerberos_principle  # type: ignore[attr-defined]
+            func = getattr(kerberos, "get_kerberos_principle")
         return func(principal)
+
+    def _run_post_submit_commands(self) -> None:
+        """
+        Run any post-submit shell commands configured on this hook.
+
+        Called after the Spark job finishes (success or on_kill). Typical use case
+        is killing sidecars like Istio that don't shut down automatically.
+        Failures are logged as warnings and never raise.
+        """
+        for cmd in self._post_submit_commands:
+            self.log.info("Running post-submit command: %s", cmd)
+            try:
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                )
+                self.log.info("Post-submit command output:\n%s", result.stdout)
+                if result.returncode != 0:
+                    self.log.warning(
+                        "Post-submit command exited with non-zero code %d: %s",
+                        result.returncode,
+                        cmd,
+                    )
+            except subprocess.TimeoutExpired:
+                self.log.warning("Post-submit command timed out (30s): %s", cmd)
+            except Exception as exc:
+                self.log.warning("Post-submit command raised an exception: %s. Error: %s", cmd, exc)
 
     def submit(self, application: str = "", **kwargs: Any) -> None:
         """
@@ -605,6 +643,7 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
                 raise AirflowException(
                     f"ERROR : Driver {self._driver_id} badly exited with status {self._driver_status}"
                 )
+        self._run_post_submit_commands()
 
     def _process_spark_submit_log(self, itr: Iterator[Any]) -> None:
         """
@@ -827,3 +866,5 @@ class SparkSubmitHook(BaseHook, LoggingMixin):
 
                 except kube_client.ApiException:
                     self.log.exception("Exception when attempting to kill Spark on K8s")
+
+        self._run_post_submit_commands()
