@@ -25,9 +25,12 @@ from typing import TYPE_CHECKING, Any
 
 import attrs
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from airflow.api_fastapi.common.db.common import SessionDep
+from airflow.configuration import conf
 from airflow.models.dagrun import DagRun
+from airflow.models.serialized_dag import SerializedDagModel
 from airflow.models.xcom import XCOM_RETURN_KEY, XComModel
 from airflow.utils.session import create_session_async
 from airflow.utils.state import State
@@ -89,3 +92,17 @@ class DagRunWaiter:
             await asyncio.sleep(self.interval)
             yield self._serialize_response(dag_run := await self._get_dag_run())
             yield "\n"
+
+
+def resolve_run_on_latest_version(
+    explicit_value: bool | None,
+    dag_id: str,
+    session: Session,
+) -> bool:
+    """Resolve run_on_latest_version: explicit > DAG-level > global config > False."""
+    if explicit_value is not None:
+        return explicit_value
+    serialized = SerializedDagModel.get_dag(dag_id, session=session)
+    if serialized and serialized.rerun_with_latest_version is not None:
+        return serialized.rerun_with_latest_version
+    return conf.getboolean("core", "rerun_with_latest_version", fallback=False)
