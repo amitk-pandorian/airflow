@@ -42,6 +42,7 @@ class XComOperatorLink(LoggingMixin):
 
     name: str
     xcom_key: str
+    target: str = "_blank"
 
     def get_link(self, operator: Operator, *, ti_key: TaskInstanceKey) -> str:
         """

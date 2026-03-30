@@ -3805,13 +3805,43 @@ export const $ExternalViewResponse = {
     description: 'Serializer for External View Plugin responses.'
 } as const;
 
+export const $LinkResponseValue = {
+    properties: {
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
+        },
+        target: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Target'
+        }
+    },
+    type: 'object',
+    title: 'LinkResponseValue',
+    description: 'Extra Link Value Response.'
+} as const;
+
 export const $ExtraLinkCollectionResponse = {
     properties: {
         extra_links: {
             additionalProperties: {
                 anyOf: [
                     {
-                        type: 'string'
+                        '$ref': '#/components/schemas/LinkResponseValue'
                     },
                     {
                         type: 'null'

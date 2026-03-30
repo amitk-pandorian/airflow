@@ -1,0 +1,1 @@
+Allow configuring the target attribute for operator extra links (e.g., to open in the same tab with `_self`).

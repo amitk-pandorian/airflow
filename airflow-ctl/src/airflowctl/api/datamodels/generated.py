@@ -523,12 +523,21 @@ class ExternalViewResponse(BaseModel):
     destination: Annotated[Destination | None, Field(title="Destination")] = "nav"
 
 
+class LinkResponseValue(BaseModel):
+    """
+    Extra Link Value Response.
+    """
+
+    url: Annotated[str | None, Field(title="Url")] = None
+    target: Annotated[str | None, Field(title="Target")] = None
+
+
 class ExtraLinkCollectionResponse(BaseModel):
     """
     Extra Links Response.
     """
 
-    extra_links: Annotated[dict[str, str | None], Field(title="Extra Links")]
+    extra_links: Annotated[dict[str, LinkResponseValue | None], Field(title="Extra Links")]
     total_entries: Annotated[int, Field(title="Total Entries")]
 
 

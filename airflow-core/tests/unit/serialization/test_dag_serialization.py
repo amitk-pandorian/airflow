@@ -293,7 +293,9 @@ serialized_simple_dag_ground_truth = {
                     "retries": 1,
                     "retry_delay": 240.0,
                     "max_retry_delay": 600.0,
-                    "_operator_extra_links": {"Google Custom": "_link_CustomOpLink"},
+                    "_operator_extra_links": {
+                        "Google Custom": {"xcom_key": "_link_CustomOpLink", "target": "_blank"}
+                    },
                     "template_fields": ["bash_command"],
                     "task_type": "CustomOperator",
                     "_operator_name": "@custom",
@@ -1296,13 +1298,16 @@ class TestStringifiedDAGs:
         [
             pytest.param(
                 "true",
-                {"Google Custom": "_link_CustomOpLink"},
+                {"Google Custom": {"xcom_key": "_link_CustomOpLink", "target": "_blank"}},
                 {"Google Custom": "http://google.com/custom_base_link?search=true"},
                 id="non-indexed-link",
             ),
             pytest.param(
                 ["echo", "true"],
-                {"BigQuery Console #1": "bigquery_1", "BigQuery Console #2": "bigquery_2"},
+                {
+                    "BigQuery Console #1": {"xcom_key": "bigquery_1", "target": "_blank"},
+                    "BigQuery Console #2": {"xcom_key": "bigquery_2", "target": "_blank"},
+                },
                 {
                     "BigQuery Console #1": "https://console.cloud.google.com/bigquery?j=echo",
                     "BigQuery Console #2": "https://console.cloud.google.com/bigquery?j=true",
@@ -3154,7 +3159,7 @@ def test_mapped_task_with_operator_extra_links_property():
         },
         "_disallow_kwargs_override": False,
         "_expand_input_attr": "expand_input",
-        "_operator_extra_links": {"airflow": "_link_AirflowLink2"},
+        "_operator_extra_links": {"airflow": {"xcom_key": "_link_AirflowLink2", "target": "_blank"}},
         "template_fields": [],
         "task_type": "_DummyOperator",
         "_task_module": "unit.serialization.test_dag_serialization",
@@ -3660,7 +3665,9 @@ def test_handle_v2_serdag():
                         "retry_delay": 240.0,
                         "max_retry_delay": 600.0,
                         "downstream_task_ids": [],
-                        "_operator_extra_links": {"Google Custom": "_link_CustomOpLink"},
+                        "_operator_extra_links": {
+                            "Google Custom": {"xcom_key": "_link_CustomOpLink", "target": "_blank"}
+                        },
                         "ui_color": "#fff",
                         "ui_fgcolor": "#000",
                         "template_ext": [],

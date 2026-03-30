@@ -1459,7 +1459,7 @@ class OperatorSerialization(DAGNode, BaseSerialization):
 
     @classmethod
     def _deserialize_operator_extra_links(
-        cls, encoded_op_links: dict[str, str]
+        cls, encoded_op_links: dict[str, str | dict[str, str]]
     ) -> dict[str, XComOperatorLink]:
         """
         Deserialize Operator Links if the Classes are registered in Airflow Plugins.
@@ -1474,20 +1474,13 @@ class OperatorSerialization(DAGNode, BaseSerialization):
         plugins_manager.get_operator_extra_links()
         op_predefined_extra_links = {}
 
-        for name, xcom_key in encoded_op_links.items():
-            # Get the name and xcom_key of the encoded operator and use it to create a XComOperatorLink object
-            # during deserialization.
-            #
-            # Example:
-            # enc_operator['_operator_extra_links'] =
-            # {
-            #     'airflow': 'airflow_link_key',
-            #     'foo-bar': 'link-key',
-            #     'no_response': 'key',
-            #     'raise_error': 'key'
-            # }
-
-            op_predefined_extra_link = XComOperatorLink(name=name, xcom_key=xcom_key)
+        for name, value in encoded_op_links.items():
+            if isinstance(value, dict):
+                op_predefined_extra_link = XComOperatorLink(
+                    name=name, xcom_key=value["xcom_key"], target=value.get("target", "_blank")
+                )
+            else:
+                op_predefined_extra_link = XComOperatorLink(name=name, xcom_key=value)
             op_predefined_extra_links.update({op_predefined_extra_link.name: op_predefined_extra_link})
 
         return op_predefined_extra_links
@@ -1495,19 +1488,22 @@ class OperatorSerialization(DAGNode, BaseSerialization):
     @classmethod
     def _serialize_operator_extra_links(
         cls, operator_extra_links: Iterable[BaseOperatorLink]
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         """
         Serialize Operator Links.
 
-        Store the "name" of the link mapped with the xcom_key which can be later used to retrieve this
-        operator extra link from XComs.
+        Store the "name" of the link mapped with the xcom_key and the target which can be later used
+        to retrieve this operator extra link from XComs.
+
         For example:
-        ``{'link-name-1': 'xcom-key-1'}``
+        ``{'link-name-1': {'xcom_key': 'xcom-key-1', 'target': '_blank'}}``
 
         :param operator_extra_links: Operator Link
         :return: Serialized Operator Link
         """
-        return {link.name: link.xcom_key for link in operator_extra_links}
+        return {
+            link.name: {"xcom_key": link.xcom_key, "target": link.target} for link in operator_extra_links
+        }
 
     @classmethod
     def serialize(cls, var: Any, *, strict: bool = False) -> Any:

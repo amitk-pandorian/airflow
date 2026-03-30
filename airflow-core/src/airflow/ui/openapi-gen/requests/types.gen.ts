@@ -953,11 +953,19 @@ export type ExternalViewResponse = {
 export type destination = 'nav' | 'dag' | 'dag_run' | 'task' | 'task_instance' | 'base';
 
 /**
+ * Extra Link Value Response.
+ */
+export type LinkResponseValue = {
+    url?: string | null;
+    target?: string | null;
+};
+
+/**
  * Extra Links Response.
  */
 export type ExtraLinkCollectionResponse = {
     extra_links: {
-        [key: string]: (string | null);
+        [key: string]: (LinkResponseValue | null);
     };
     total_entries: number;
 };
