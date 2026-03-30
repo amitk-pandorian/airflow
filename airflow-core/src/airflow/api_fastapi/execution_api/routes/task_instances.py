@@ -28,7 +28,7 @@ from uuid import UUID
 import attrs
 import structlog
 from cadwyn import VersionedAPIRouter
-from fastapi import Body, HTTPException, Query, Security, status
+from fastapi import Body, HTTPException, Query, Response, Security, status
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -42,6 +42,7 @@ from structlog.contextvars import bind_contextvars
 
 from airflow._shared.observability.traces import override_ids
 from airflow._shared.timezones import timezone
+from airflow.api_fastapi.auth.tokens import JWTGenerator
 from airflow.api_fastapi.common.dagbag import DagBagDep, get_latest_version_of_dag
 from airflow.api_fastapi.common.db.common import SessionDep
 from airflow.api_fastapi.common.types import UtcDateTime
@@ -63,6 +64,7 @@ from airflow.api_fastapi.execution_api.datamodels.taskinstance import (
     TISuccessStatePayload,
     TITerminalStatePayload,
 )
+from airflow.api_fastapi.execution_api.deps import DepContainer
 from airflow.api_fastapi.execution_api.security import ExecutionAPIRoute, require_auth
 from airflow.exceptions import TaskNotFound
 from airflow.models.asset import AssetActive
@@ -97,6 +99,7 @@ tracer = trace.get_tracer(__name__)
 @ti_id_router.patch(
     "/{task_instance_id}/run",
     status_code=status.HTTP_200_OK,
+    dependencies=[Security(require_auth, scopes=["token:execution", "token:workload"])],
     responses={
         status.HTTP_404_NOT_FOUND: {"description": "Task Instance not found"},
         status.HTTP_409_CONFLICT: {"description": "The TI is already in the requested state"},
@@ -107,8 +110,10 @@ tracer = trace.get_tracer(__name__)
 def ti_run(
     task_instance_id: UUID,
     ti_run_payload: Annotated[TIEnterRunningPayload, Body()],
+    response: Response,
     session: SessionDep,
     dag_bag: DagBagDep,
+    services=DepContainer,
 ) -> TIRunContext:
     """
     Run a TaskInstance.
@@ -286,13 +291,23 @@ def ti_run(
         if ti.next_method:
             context.next_method = ti.next_method
             context.next_kwargs = ti.next_kwargs
-
-        return context
     except SQLAlchemyError:
         log.exception("Error marking Task Instance state as running")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error occurred"
         )
+
+    try:
+        generator: JWTGenerator = services.get(JWTGenerator)
+        execution_token = generator.generate(extras={"sub": str(task_instance_id), "scope": "execution"})
+    except Exception:
+        log.exception("Failed to generate execution token for task instance %s", task_instance_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Token generation failed"
+        )
+    response.headers["Refreshed-API-Token"] = execution_token
+
+    return context
 
 
 @ti_id_router.patch(
