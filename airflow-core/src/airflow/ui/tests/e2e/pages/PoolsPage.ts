@@ -68,7 +68,6 @@ export class PoolsPage extends BasePage {
 
     await saveButton.click();
     await responsePromise;
-    await this.page.waitForLoadState("networkidle");
   }
 
   public async deletePool(poolName: string): Promise<void> {
@@ -90,7 +89,6 @@ export class PoolsPage extends BasePage {
 
     await confirmDeleteButton.click();
     await responsePromise;
-    await this.page.waitForLoadState("networkidle");
   }
 
   public async editPoolSlots(poolName: string, newSlots: number): Promise<void> {
@@ -119,7 +117,6 @@ export class PoolsPage extends BasePage {
 
     await saveButton.click();
     await responsePromise;
-    await this.page.waitForLoadState("networkidle");
   }
 
   public getPoolCard(poolName: string): Locator {
@@ -127,23 +124,20 @@ export class PoolsPage extends BasePage {
   }
 
   public async navigate(): Promise<void> {
-    await this.navigateTo(PoolsPage.poolsUrl);
-    await this.page.waitForURL("**/pools", { timeout: 15_000 });
-    await this.page.waitForLoadState("networkidle");
+    await expect(async () => {
+      await this.navigateTo(PoolsPage.poolsUrl);
+      await this.page.waitForURL("**/pools", { timeout: 15_000 });
+      await expect(this.addPoolButton).toBeVisible({ timeout: 15_000 });
+    }).toPass({ intervals: [2000], timeout: 60_000 });
   }
 
   public async verifyPoolExists(poolName: string): Promise<void> {
-    await this.page.waitForLoadState("networkidle");
-
     const poolText = this.cardList.getByText(poolName, { exact: false });
 
     await expect(poolText.first()).toBeVisible({ timeout: 10_000 });
   }
 
   public async verifyPoolNotExists(poolName: string): Promise<void> {
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(1000);
-
     const poolText = this.cardList.getByText(poolName, { exact: true });
 
     await expect(poolText).toBeHidden({ timeout: 10_000 });
@@ -159,8 +153,6 @@ export class PoolsPage extends BasePage {
   }
 
   public async verifyPoolSlots(poolName: string, expectedSlots: number): Promise<void> {
-    await this.page.waitForLoadState("networkidle");
-
     const slotsText = this.cardList.getByText(`${poolName} (${expectedSlots} Slots)`, { exact: false });
 
     await expect(slotsText.first()).toBeVisible({ timeout: 10_000 });
