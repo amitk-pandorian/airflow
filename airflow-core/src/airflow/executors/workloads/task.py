@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
@@ -72,6 +72,7 @@ class ExecuteTask(BaseDagBundleWorkload):
     sentry_integration: str = ""
 
     type: Literal["ExecuteTask"] = Field(init=False, default="ExecuteTask")
+    TYPE: ClassVar[str] = "ExecuteTask"
 
     @classmethod
     def make(
