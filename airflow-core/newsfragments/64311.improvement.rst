@@ -1,0 +1,1 @@
+Add database indexes on ``serialized_dag(dag_id, last_updated)``, ``dag_code(dag_id)``, and ``task_instance(dag_version_id)`` to improve query performance. On large deployments, creating the index on ``task_instance`` may take a while and lock the table during the migration.
