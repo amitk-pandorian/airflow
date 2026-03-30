@@ -347,9 +347,9 @@
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
             <circle cx="44" cy="0" r="7" fill="#28c840"/>
             </g>
-        
+
     <g transform="translate(9, 41)" clip-path="url(#breeze-pr-auto-triage-clip-terminal)">
-    
+
     <g class="breeze-pr-auto-triage-matrix">
     <text class="breeze-pr-auto-triage-r1" x="1464" y="20" textLength="12.2" clip-path="url(#breeze-pr-auto-triage-line-0)">
 </text><text class="breeze-pr-auto-triage-r2" x="12.2" y="44.4" textLength="73.2" clip-path="url(#breeze-pr-auto-triage-line-1)">Usage:</text><text class="breeze-pr-auto-triage-r3" x="97.6" y="44.4" textLength="256.2" clip-path="url(#breeze-pr-auto-triage-line-1)">breeze&#160;pr&#160;auto-triage</text><text class="breeze-pr-auto-triage-r1" x="366" y="44.4" textLength="12.2" clip-path="url(#breeze-pr-auto-triage-line-1)">[</text><text class="breeze-pr-auto-triage-r4" x="378.2" y="44.4" textLength="85.4" clip-path="url(#breeze-pr-auto-triage-line-1)">OPTIONS</text><text class="breeze-pr-auto-triage-r1" x="463.6" y="44.4" textLength="12.2" clip-path="url(#breeze-pr-auto-triage-line-1)">]</text><text class="breeze-pr-auto-triage-r1" x="1464" y="44.4" textLength="12.2" clip-path="url(#breeze-pr-auto-triage-line-1)">
