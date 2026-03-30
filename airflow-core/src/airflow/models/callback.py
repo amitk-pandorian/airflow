@@ -29,7 +29,7 @@ import uuid6
 from sqlalchemy import ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from airflow._shared.observability.metrics.stats import Stats
+from airflow._shared.observability.metrics import stats
 from airflow._shared.timezones import timezone
 from airflow.executors.workloads import BaseWorkload
 from airflow.executors.workloads.callback import CallbackFetchMethod
@@ -231,7 +231,7 @@ class TriggererCallback(Callback):
             if status in TERMINAL_STATES:
                 self.trigger = None
                 self.output = event.payload.get(PAYLOAD_BODY_KEY)
-                Stats.incr(**self.get_metric_info(status, self.output))
+                stats.incr(**self.get_metric_info(status, self.output))
 
             session.add(self)
         else:

@@ -30,16 +30,12 @@ from airflow.utils.state import TaskInstanceState
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-try:
-    from airflow.sdk._shared.observability.metrics.dual_stats_manager import DualStatsManager  # noqa: F401
+from airflow.providers.common.compat.sdk import Stats
 
-    stats_reference = "airflow.sdk._shared.observability.metrics.dual_stats_manager.DualStatsManager"
-    expected_call_count = 1
-except ImportError:
-    from airflow.providers.common.compat.sdk import Stats
+from tests_common.test_utils.version_compat import AIRFLOW_V_3_2_PLUS
 
-    stats_reference = f"{Stats.__module__}.Stats"
-    expected_call_count = 2
+stats_reference = f"{Stats.__module__}.Stats"
+expected_call_count = 1 if AIRFLOW_V_3_2_PLUS else 2
 
 pytestmark = pytest.mark.db_test
 
@@ -94,15 +90,16 @@ class TestJobsApiRoutes:
                 session=session,
             )
 
-            mock_stats_incr.assert_called_with(
-                "edge_worker.ti.finish",
-                tags={
-                    "dag_id": DAG_ID,
-                    "queue": QUEUE,
-                    "state": TaskInstanceState.SUCCESS,
-                    "task_id": TASK_ID,
-                },
-            )
+            expected_tags = {
+                "dag_id": DAG_ID,
+                "queue": QUEUE,
+                "state": TaskInstanceState.SUCCESS,
+                "task_id": TASK_ID,
+            }
+            if AIRFLOW_V_3_2_PLUS:
+                mock_stats_incr.assert_called_with("edge_worker.ti.finish", legacy_name_tags=expected_tags)
+            else:
+                mock_stats_incr.assert_called_with("edge_worker.ti.finish", tags=expected_tags)
             assert mock_stats_incr.call_count == expected_call_count
 
             db_job: EdgeJobModel | None = session.scalar(select(EdgeJobModel))

@@ -32,8 +32,11 @@ from airflow.utils.session import create_session
 from airflow.utils.state import TaskInstanceState
 
 from tests_common.test_utils.config import conf_vars
+from tests_common.test_utils.version_compat import AIRFLOW_V_3_2_PLUS
 
 pytestmark = pytest.mark.db_test
+
+stats_reference = f"{Stats.__module__}.Stats"
 
 
 class TestEdgeExecutor:
@@ -56,7 +59,7 @@ class TestEdgeExecutor:
 
         return (executor, key)
 
-    @patch(f"{Stats.__module__}.Stats.incr")
+    @patch(f"{stats_reference}.incr")
     def test_sync_orphaned_tasks(self, mock_stats_incr):
         executor = EdgeExecutor()
 
@@ -92,16 +95,18 @@ class TestEdgeExecutor:
 
         executor.sync()
 
-        mock_stats_incr.assert_called_with(
-            "edge_worker.ti.finish",
-            tags={
-                "dag_id": "test_dag",
-                "queue": "default",
-                "state": "failed",
-                "task_id": "started_running_orphaned",
-            },
-        )
-        mock_stats_incr.call_count == 2
+        expected_tags = {
+            "dag_id": "test_dag",
+            "queue": "default",
+            "state": "failed",
+            "task_id": "started_running_orphaned",
+        }
+        if AIRFLOW_V_3_2_PLUS:
+            mock_stats_incr.assert_called_with("edge_worker.ti.finish", legacy_name_tags=expected_tags)
+            assert mock_stats_incr.call_count == 1
+        else:
+            mock_stats_incr.assert_called_with("edge_worker.ti.finish", tags=expected_tags)
+            assert mock_stats_incr.call_count == 2
 
         with create_session() as session:
             jobs = session.scalars(select(EdgeJobModel)).all()

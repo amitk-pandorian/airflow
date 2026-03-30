@@ -43,8 +43,7 @@ from sqlalchemy import func, select
 from structlog.contextvars import bind_contextvars as bind_log_contextvars
 
 from airflow._shared.module_loading import import_string
-from airflow._shared.observability.metrics.dual_stats_manager import DualStatsManager
-from airflow._shared.observability.metrics.stats import Stats
+from airflow._shared.observability.metrics import stats
 from airflow._shared.timezones import timezone
 from airflow.configuration import conf
 from airflow.executors import workloads
@@ -204,8 +203,7 @@ class TriggererJobRunner(BaseJobRunner, LoggingMixin):
     def _execute(self) -> int | None:
         self.log.info("Starting the triggerer")
         self.register_signals()
-        stats_factory = stats_utils.get_stats_factory(Stats)
-        Stats.initialize(factory=stats_factory)
+        stats.initialize(factory=stats_utils.get_stats_factory())
         try:
             # Kick off runner sub-process without DB access
             self.trigger_runner = TriggerRunnerSupervisor.start(
@@ -606,7 +604,7 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
         perform_heartbeat(self.job, heartbeat_callback=self.heartbeat_callback, only_if_necessary=True)
 
     def heartbeat_callback(self, session: Session | None = None) -> None:
-        Stats.incr("triggerer_heartbeat", 1, 1)
+        stats.incr("triggerer_heartbeat", 1, 1)
 
     def load_triggers(self):
         """Query the database for the triggers we're supposed to be running and update the runner."""
@@ -627,7 +625,7 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
             # Tell the model to wake up its tasks
             Trigger.submit_event(trigger_id=trigger_id, event=event)
             # Emit stat event
-            Stats.incr("triggers.succeeded")
+            stats.incr("triggers.succeeded")
 
     def clean_unused(self):
         """Clean out unused or finished triggers."""
@@ -644,22 +642,22 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
             trigger_id, saved_exc = self.failed_triggers.popleft()
             Trigger.submit_failure(trigger_id=trigger_id, exc=saved_exc)
             # Emit stat event
-            Stats.incr("triggers.failed")
+            stats.incr("triggers.failed")
 
     def emit_metrics(self):
-        DualStatsManager.gauge(
+        stats.gauge(
             "triggers.running",
             len(self.running_triggers),
             tags={},
-            extra_tags={"hostname": self.job.hostname},
+            legacy_name_tags={"hostname": self.job.hostname},
         )
 
         capacity_left = self.capacity - len(self.running_triggers)
-        DualStatsManager.gauge(
+        stats.gauge(
             "triggerer.capacity_left",
             capacity_left,
             tags={},
-            extra_tags={"hostname": self.job.hostname},
+            legacy_name_tags={"hostname": self.job.hostname},
         )
 
     def _create_workload(
@@ -1281,7 +1279,7 @@ class TriggerRunner:
                     "to get more information on overrunning coroutines.",
                     time_elapsed,
                 )
-                Stats.incr("triggers.blocked_main_thread")
+                stats.incr("triggers.blocked_main_thread")
 
     async def run_trigger(
         self,

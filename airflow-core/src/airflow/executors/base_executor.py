@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 import pendulum
 
-from airflow._shared.observability.metrics.stats import Stats
+from airflow._shared.observability.metrics import stats
 from airflow.cli.cli_config import DefaultHelpParser
 from airflow.configuration import conf
 from airflow.executors import workloads
@@ -174,8 +174,7 @@ class BaseExecutor(LoggingMixin):
         return generator
 
     def __init__(self, parallelism: int = PARALLELISM, team_name: str | None = None):
-        stats_factory = stats_utils.get_stats_factory(Stats)
-        Stats.initialize(factory=stats_factory)
+        stats.initialize(factory=stats_utils.get_stats_factory())
         super().__init__()
         # Ensure we set this now, so that each subprocess gets the same value
         from airflow.api_fastapi.auth.tokens import get_signing_args
@@ -338,17 +337,17 @@ class BaseExecutor(LoggingMixin):
         else:
             self.log.debug("%s open slots for executor %s", open_slots, name)
 
-        Stats.gauge(
+        stats.gauge(
             open_slots_metric_name,
             value=open_slots,
             tags={"status": "open", "name": name},
         )
-        Stats.gauge(
+        stats.gauge(
             queued_tasks_metric_name,
             value=num_queued_tasks,
             tags={"status": "queued", "name": name},
         )
-        Stats.gauge(
+        stats.gauge(
             running_tasks_metric_name,
             value=num_running_tasks,
             tags={"status": "running", "name": name},

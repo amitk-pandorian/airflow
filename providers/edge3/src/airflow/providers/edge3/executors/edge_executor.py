@@ -28,6 +28,7 @@ from airflow.executors import workloads
 from airflow.executors.base_executor import BaseExecutor
 from airflow.models.taskinstance import TaskInstance
 from airflow.providers.common.compat.sdk import Stats, conf, timezone
+from airflow.providers.common.compat.version_compat import AIRFLOW_V_3_2_PLUS
 from airflow.providers.edge3.models.db import EdgeDBManager, check_db_manager_config
 from airflow.providers.edge3.models.edge_job import EdgeJobModel
 from airflow.providers.edge3.models.edge_logs import EdgeLogsModel
@@ -191,11 +192,14 @@ class EdgeExecutor(BaseExecutor):
                     "queue": job.queue,
                     "state": str(TaskInstanceState.FAILED),
                 }
-                Stats.incr(
-                    f"edge_worker.ti.finish.{job.queue}.{TaskInstanceState.FAILED}.{job.dag_id}.{job.task_id}",
-                    tags=tags,
-                )
-                Stats.incr("edge_worker.ti.finish", tags=tags)
+                if AIRFLOW_V_3_2_PLUS:
+                    Stats.incr("edge_worker.ti.finish", legacy_name_tags=tags)
+                else:
+                    Stats.incr(
+                        f"edge_worker.ti.finish.{job.queue}.{TaskInstanceState.FAILED}.{job.dag_id}.{job.task_id}",
+                        tags=tags,
+                    )
+                    Stats.incr("edge_worker.ti.finish", tags=tags)
 
         return bool(lifeless_jobs)
 
