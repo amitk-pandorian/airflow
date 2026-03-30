@@ -50,9 +50,22 @@ export class DagCalendarTab extends BasePage {
 
     for (let i = 0; i < count; i++) {
       const cell = this.activeCells.nth(i);
-      const bg = await cell.evaluate((el) => window.getComputedStyle(el).backgroundColor);
+      const computedStyle = await cell.getAttribute("style");
 
-      colors.push(bg);
+      if (computedStyle) {
+        const bgColorMatch = computedStyle.match(/background-color\s*:\s*([^;]+)/);
+
+        if (bgColorMatch) {
+          colors.push(bgColorMatch[1].trim());
+          continue;
+        }
+      }
+
+      const dataColor = await cell.getAttribute("data-bg-color");
+
+      if (dataColor) {
+        colors.push(dataColor);
+      }
     }
 
     return colors;
@@ -118,16 +131,16 @@ export class DagCalendarTab extends BasePage {
 
     const overlay = this.page.getByTestId("calendar-loading-overlay");
 
-    if (await overlay.isVisible().catch(() => false)) {
-      await overlay.waitFor({ state: "hidden", timeout: 120_000 });
+    try {
+      await expect(overlay).toBeVisible({ timeout: 10_000 });
+    } catch {
+
     }
 
     await this.page.getByTestId("calendar-grid").waitFor({ state: "visible", timeout: 120_000 });
 
-    await this.page.waitForFunction(() => {
-      const cells = document.querySelectorAll('[data-testid="calendar-cell"]');
+    const cells = this.page.getByTestId("calendar-cell");
 
-      return cells.length > 0;
-    });
+    await expect(cells.first()).toBeVisible({ timeout: 120_000 });
   }
 }
