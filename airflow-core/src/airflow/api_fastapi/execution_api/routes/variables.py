@@ -95,6 +95,15 @@ def put_variable(
     team_name: Annotated[str | None, Depends(get_team_name_dep)],
 ):
     """Set an Airflow Variable."""
+    if not variable_key:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "reason": "not_found",
+                "message": "Not Found",
+            },
+        )
+
     Variable.set(key=variable_key, value=body.value, description=body.description, team_name=team_name)
     return {"message": "Variable successfully set"}
 
@@ -112,4 +121,13 @@ def delete_variable(
     team_name: Annotated[str | None, Depends(get_team_name_dep)],
 ):
     """Delete an Airflow Variable."""
+    if not variable_key:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "reason": "not_found",
+                "message": "Not Found",
+            },
+        )
+
     Variable.delete(key=variable_key, team_name=team_name)
