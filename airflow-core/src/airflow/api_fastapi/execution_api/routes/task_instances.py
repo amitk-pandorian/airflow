@@ -135,6 +135,7 @@ def ti_run(
             TI.map_index,
             TI.try_number,
             TI.max_tries,
+            TI.start_date,
             TI.next_method,
             TI.hostname,
             TI.unixname,
@@ -286,7 +287,7 @@ def ti_run(
         if ti.next_method:
             context.next_method = ti.next_method
             context.next_kwargs = ti.next_kwargs
-
+            context.start_date = ti.start_date
         return context
     except SQLAlchemyError:
         log.exception("Error marking Task Instance state as running")
