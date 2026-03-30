@@ -38,7 +38,6 @@ export class ConnectionsPage extends BasePage {
   }
 
   public readonly addButton: Locator;
-  public readonly confirmDeleteButton: Locator;
   public readonly connectionForm: Locator;
   public readonly connectionIdHeader: Locator;
   public readonly connectionIdInput: Locator;
@@ -85,13 +84,10 @@ export class ConnectionsPage extends BasePage {
     this.loginInput = page.locator('input[name="login"]').first();
     this.passwordInput = page.locator('input[name="password"], input[type="password"]').first();
     this.schemaInput = page.locator('input[name="schema"]').first();
-    // Try multiple possible selectors
     this.descriptionInput = page.locator('[name="description"]').first();
     // Alerts
     this.successAlert = page.locator('[data-scope="toast"][data-part="root"]');
 
-    // Delete confirmation dialog — the confirm button text comes from deleteActions.modal.confirmButton ("Yes, Delete")
-    this.confirmDeleteButton = page.getByRole("button", { name: "Yes, Delete" });
     this.rowsPerPageSelect = page.locator("select");
 
     // Sorting and filtering
@@ -101,7 +97,7 @@ export class ConnectionsPage extends BasePage {
     this.connectionTypeHeader = page.getByText("Connection Type").first();
     this.hostHeader = page.getByText("Host").first();
 
-    this.searchInput = page.locator('input[placeholder*="Search"], input[placeholder*="search"]').first();
+    this.searchInput = page.getByPlaceholder(/search/i).first();
     // All table body rows (used by connectionRows for web-first assertions)
     this.connectionRows = page.locator("tbody tr");
   }
@@ -141,7 +137,6 @@ export class ConnectionsPage extends BasePage {
 
   // Delete a connection by connection ID
   public async deleteConnection(connectionId: string): Promise<void> {
-    // await this.navigate();
     const row = await this.findConnectionRow(connectionId);
 
     if (!row) {
@@ -154,12 +149,7 @@ export class ConnectionsPage extends BasePage {
     await expect(deleteButton).toBeEnabled({ timeout: 5000 });
     await deleteButton.click();
 
-    // Wait for the dialog root to appear in the DOM before interacting with the
-    // confirm button. Without this, Playwright's click delivery races with
-    // Chakra UI/Ark UI's "click outside" handler: the mousedown opens the dialog,
-    // the dialog renders its backdrop, and the mouseup lands on the backdrop and
-    // immediately closes it. Waiting for [role="dialog"] ensures we only proceed
-    // once the dialog is fully mounted and stable.
+    // Wait for the dialog to be fully mounted before interacting with its contents.
     const deleteDialog = this.page.locator('[role="dialog"]');
 
     await deleteDialog.waitFor({ state: "visible", timeout: 10_000 });
@@ -204,7 +194,7 @@ export class ConnectionsPage extends BasePage {
 
       await expect(selectCombobox).toBeEnabled({ timeout: 25_000 });
 
-      await selectCombobox.click({ timeout: 10_000 });
+      await selectCombobox.click();
 
       // Wait for options to appear and click the matching option
       const option = this.page.getByRole("option", { name: new RegExp(details.conn_type, "i") }).first();
