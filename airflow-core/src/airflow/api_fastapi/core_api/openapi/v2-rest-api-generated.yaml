@@ -11500,12 +11500,27 @@ components:
       - href
       title: ExternalViewResponse
       description: Serializer for External View Plugin responses.
+    LinkResponseValue:
+      properties:
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        target:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target
+      type: object
+      title: LinkResponseValue
+      description: Extra Link Value Response.
     ExtraLinkCollectionResponse:
       properties:
         extra_links:
           additionalProperties:
             anyOf:
-            - type: string
+            - $ref: '#/components/schemas/LinkResponseValue'
             - type: 'null'
           type: object
           title: Extra Links

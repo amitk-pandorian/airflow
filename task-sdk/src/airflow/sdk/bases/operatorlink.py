@@ -39,6 +39,14 @@ class BaseOperatorLink(metaclass=ABCMeta):
     :return: List of Operator classes used by task for which you want to create extra link
     """
 
+    target = "_blank"
+    """
+    The target attribute of the link. This will be used to determine how the link
+    is opened in the UI (e.g. "_blank", "_self").
+
+    Defaults to "_blank".
+    """
+
     @property
     @abstractmethod
     def name(self) -> str:

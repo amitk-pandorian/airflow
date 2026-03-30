@@ -47,10 +47,10 @@ export const ExtraLinks = ({ refetchInterval }: ExtraLinksProps) => {
     <Box py={1}>
       <Heading size="sm">{translate("extraLinks")}</Heading>
       <HStack gap={2} py={2}>
-        {Object.entries(data.extra_links).map(([key, value], _) =>
-          value === null ? undefined : (
+        {Object.entries(data.extra_links).map(([key, value]) =>
+          (value?.url ?? "") === "" ? undefined : (
             <Button asChild colorPalette="brand" key={key} variant="surface">
-              <a href={value} rel="noopener noreferrer" target="_blank">
+              <a href={value?.url ?? ""} rel="noopener noreferrer" target={value?.target ?? "_blank"}>
                 {key}
               </a>
             </Button>

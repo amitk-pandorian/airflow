@@ -160,7 +160,12 @@ class TestGetExtraLinks:
         assert (
             response.json()
             == ExtraLinkCollectionResponse(
-                extra_links={"Google Custom": "http://google.com/custom_base_link?search=TEST_LINK_VALUE"},
+                extra_links={
+                    "Google Custom": {
+                        "url": "http://google.com/custom_base_link?search=TEST_LINK_VALUE",
+                        "target": "_blank",
+                    }
+                },
                 total_entries=1,
             ).model_dump()
         )
@@ -173,7 +178,9 @@ class TestGetExtraLinks:
         assert response.status_code == 200
         assert (
             response.json()
-            == ExtraLinkCollectionResponse(extra_links={"Google Custom": None}, total_entries=1).model_dump()
+            == ExtraLinkCollectionResponse(
+                extra_links={"Google Custom": {"url": "", "target": "_blank"}}, total_entries=1
+            ).model_dump()
         )
 
     def test_should_respond_200_multiple_links(self, test_client, session):
@@ -212,8 +219,14 @@ class TestGetExtraLinks:
             response.json()
             == ExtraLinkCollectionResponse(
                 extra_links={
-                    "BigQuery Console #1": "https://console.cloud.google.com/bigquery?j=TEST_LINK_VALUE_1",
-                    "BigQuery Console #2": "https://console.cloud.google.com/bigquery?j=TEST_LINK_VALUE_2",
+                    "BigQuery Console #1": {
+                        "url": "https://console.cloud.google.com/bigquery?j=TEST_LINK_VALUE_1",
+                        "target": "_blank",
+                    },
+                    "BigQuery Console #2": {
+                        "url": "https://console.cloud.google.com/bigquery?j=TEST_LINK_VALUE_2",
+                        "target": "_blank",
+                    },
                 },
                 total_entries=2,
             ).model_dump()
@@ -228,7 +241,10 @@ class TestGetExtraLinks:
         assert (
             response.json()
             == ExtraLinkCollectionResponse(
-                extra_links={"BigQuery Console #1": None, "BigQuery Console #2": None},
+                extra_links={
+                    "BigQuery Console #1": {"url": "", "target": "_blank"},
+                    "BigQuery Console #2": {"url": "", "target": "_blank"},
+                },
                 total_entries=2,
             ).model_dump()
         )
@@ -244,9 +260,12 @@ class TestGetExtraLinks:
             response.json()
             == ExtraLinkCollectionResponse(
                 extra_links={
-                    "Google Custom": None,
-                    "Google": "https://www.google.com",
-                    "S3": ("https://s3.amazonaws.com/airflow-logs/TEST_DAG_ID/TEST_SINGLE_LINK/"),
+                    "Google Custom": {"url": "", "target": "_blank"},
+                    "Google": {"url": "https://www.google.com", "target": "_blank"},
+                    "S3": {
+                        "url": "https://s3.amazonaws.com/airflow-logs/TEST_DAG_ID/TEST_SINGLE_LINK/",
+                        "target": "_blank",
+                    },
                 },
                 total_entries=3,
             ).model_dump()
@@ -279,7 +298,12 @@ class TestGetExtraLinks:
             assert (
                 response.json()
                 == ExtraLinkCollectionResponse(
-                    extra_links={"Google Custom": f"http://google.com/custom_base_link?search={value}"},
+                    extra_links={
+                        "Google Custom": {
+                            "url": f"http://google.com/custom_base_link?search={value}",
+                            "target": "_blank",
+                        }
+                    },
                     total_entries=1,
                 ).model_dump()
             )
@@ -334,7 +358,7 @@ class TestGetExtraLinks:
         # assert for 200 status with stringified value, not 500 with deserialized object
         assert response.status_code == 200
 
-        link_value = response.json()["extra_links"]["Google Custom"]
+        link_value = response.json()["extra_links"]["Google Custom"]["url"]
         assert isinstance(link_value, str)
         # since API returns stringified value, loading it back to compare with original payload should be true
         assert json.loads(link_value) == payload
