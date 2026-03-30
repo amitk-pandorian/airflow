@@ -202,6 +202,12 @@ class TriggererJobRunner(BaseJobRunner, LoggingMixin):
             sys.exit(os.EX_SOFTWARE)
 
     def _execute(self) -> int | None:
+        # Mark as server context for secrets backend detection when handling GetConnection
+        # requests from the TriggerRunner subprocess (needs MetastoreBackend).
+        # The subprocess explicitly sets _AIRFLOW_PROCESS_CONTEXT=client to prevent
+        # inheriting server privileges (runs user trigger/callback code).
+        # Similar to DagProcessorManager / DagProcessor child pattern.
+        os.environ["_AIRFLOW_PROCESS_CONTEXT"] = "server"
         self.log.info("Starting the triggerer")
         self.register_signals()
         stats_factory = stats_utils.get_stats_factory(Stats)
@@ -967,6 +973,9 @@ class TriggerRunner:
 
     def run(self):
         """Sync entrypoint - just run arun in an async loop."""
+        # Mark as client-side (runs user trigger/callback code)
+        # Prevents inheriting server context from parent TriggerRunnerSupervisor
+        os.environ["_AIRFLOW_PROCESS_CONTEXT"] = "client"
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
         asyncio.run(self.arun())
