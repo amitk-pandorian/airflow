@@ -301,8 +301,8 @@ def set_context(logger, value):
             # Not all handlers need to have context passed in so we ignore
             # the error when handlers do not have set_context defined.
 
-            # Don't use getatrr so we have type checking. And we don't care if handler is actually a
-            # FileTaskHandler, it just needs to have a set_context function!
+            # Don't use getattr so we have type checking. Any handler with set_context
+            # method will have it called.
             if hasattr(handler, "set_context"):
                 from airflow.utils.log.file_task_handler import FileTaskHandler  # noqa: TC001
 

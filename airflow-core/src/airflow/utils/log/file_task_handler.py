@@ -41,8 +41,6 @@ from airflow.configuration import conf
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.utils.helpers import parse_template_string, render_template
 from airflow.utils.log.log_stream_accumulator import LogStreamAccumulator
-from airflow.utils.log.logging_mixin import SetContextPropagate
-from airflow.utils.log.non_caching_file_handler import NonCachingRotatingFileHandler
 from airflow.utils.session import NEW_SESSION, provide_session
 from airflow.utils.state import State, TaskInstanceState
 
@@ -417,15 +415,9 @@ def _get_compatible_log_stream(
 
 class FileTaskHandler(logging.Handler):
     """
-    FileTaskHandler is a python log handler that handles and reads task instance logs.
+    FileTaskHandler reads task instance logs from local or remote sources.
 
-    It creates and delegates log handling to `logging.FileHandler` after receiving task
-    instance context.  It reads logs from task instance's host machine.
-
-    :param base_log_folder: Base log folder to place logs.
-    :param max_bytes: max bytes size for the log file
-    :param backup_count: backup file count for the log file
-    :param delay:  default False -> StreamHandler, True -> Handler
+    It no longer handles writing (moved to Task SDK / structlog).
     """
 
     trigger_should_wrap = True
@@ -435,25 +427,9 @@ class FileTaskHandler(logging.Handler):
     executor_instances: dict[str, BaseExecutor] = {}
     DEFAULT_EXECUTOR_KEY = "_default_executor"
 
-    def __init__(
-        self,
-        base_log_folder: str,
-        max_bytes: int = 0,
-        backup_count: int = 0,
-        delay: bool = False,
-    ):
+    def __init__(self, base_log_folder: str):
         super().__init__()
-        self.handler: logging.Handler | None = None
         self.local_base = base_log_folder
-        self.maintain_propagate: bool = False
-        self.max_bytes = max_bytes
-        self.backup_count = backup_count
-        self.delay = delay
-        """
-        If true, overrides default behavior of setting propagate=False
-
-        :meta private:
-        """
 
         self.ctx_task_deferred = False
         """
@@ -461,35 +437,6 @@ class FileTaskHandler(logging.Handler):
 
         Some handlers emit "end of log" markers, and may not wish to do so when task defers.
         """
-
-    def set_context(
-        self, ti: TaskInstance | TaskInstanceHistory, *, identifier: str | None = None
-    ) -> None | SetContextPropagate:
-        """
-        Provide task_instance context to airflow task handler.
-
-        Generally speaking returns None.  But if attr `maintain_propagate` has
-        been set to propagate, then returns sentinel MAINTAIN_PROPAGATE. This
-        has the effect of overriding the default behavior to set `propagate`
-        to False whenever set_context is called.  At time of writing, this
-        functionality is only used in unit testing.
-
-        :param ti: task instance object
-        :param identifier: if set, adds suffix to log file. For use when relaying exceptional messages
-            to task logs from a context other than task or trigger run
-        """
-        local_loc = self._init_file(ti, identifier=identifier)
-        self.handler = NonCachingRotatingFileHandler(
-            local_loc,
-            encoding="utf-8",
-            maxBytes=self.max_bytes,
-            backupCount=self.backup_count,
-            delay=self.delay,
-        )
-        if self.formatter:
-            self.handler.setFormatter(self.formatter)
-        self.handler.setLevel(self.level)
-        return SetContextPropagate.MAINTAIN_PROPAGATE if self.maintain_propagate else None
 
     @staticmethod
     def add_triggerer_suffix(full_path, job_id=None):
@@ -506,18 +453,6 @@ class FileTaskHandler(logging.Handler):
         if job_id:
             full_path += f".{job_id}.log"
         return full_path
-
-    def emit(self, record):
-        if self.handler:
-            self.handler.emit(record)
-
-    def flush(self):
-        if self.handler:
-            self.handler.flush()
-
-    def close(self):
-        if self.handler:
-            self.handler.close()
 
     @provide_session
     def _render_filename(
@@ -793,69 +728,6 @@ class FileTaskHandler(logging.Handler):
             f" Got {type(out_stream).__name__} instead."
             f" Content type: {type(out_stream[0]).__name__ if isinstance(out_stream, (list, tuple)) and out_stream else 'empty'}"
         )
-
-    @staticmethod
-    def _prepare_log_folder(directory: Path, new_folder_permissions: int):
-        """
-        Prepare the log folder and ensure its mode is as configured.
-
-        To handle log writing when tasks are impersonated, the log files need to
-        be writable by the user that runs the Airflow command and the user
-        that is impersonated. This is mainly to handle corner cases with the
-        SubDagOperator. When the SubDagOperator is run, all of the operators
-        run under the impersonated user and create appropriate log files
-        as the impersonated user. However, if the user manually runs tasks
-        of the SubDagOperator through the UI, then the log files are created
-        by the user that runs the Airflow command. For example, the Airflow
-        run command may be run by the `airflow_sudoable` user, but the Airflow
-        tasks may be run by the `airflow` user. If the log files are not
-        writable by both users, then it's possible that re-running a task
-        via the UI (or vice versa) results in a permission error as the task
-        tries to write to a log file created by the other user.
-
-        We leave it up to the user to manage their permissions by exposing configuration for both
-        new folders and new log files. Default is to make new log folders and files group-writeable
-        to handle most common impersonation use cases. The requirement in this case will be to make
-        sure that the same group is set as default group for both - impersonated user and main airflow
-        user.
-        """
-        for parent in reversed(directory.parents):
-            parent.mkdir(mode=new_folder_permissions, exist_ok=True)
-        directory.mkdir(mode=new_folder_permissions, exist_ok=True)
-
-    def _init_file(self, ti, *, identifier: str | None = None):
-        """
-        Create log directory and give it permissions that are configured.
-
-        See above _prepare_log_folder method for more detailed explanation.
-
-        :param ti: task instance object
-        :return: relative log path of the given task instance
-        """
-        new_file_permissions = int(
-            conf.get("logging", "file_task_handler_new_file_permissions", fallback="0o664"), 8
-        )
-        local_relative_path = self._render_filename(ti, ti.try_number)
-        full_path = os.path.join(self.local_base, local_relative_path)
-        if identifier:
-            full_path += f".{identifier}.log"
-        elif ti.is_trigger_log_context is True:
-            # if this is true, we're invoked via set_context in the context of
-            # setting up individual trigger logging. return trigger log path.
-            full_path = self.add_triggerer_suffix(full_path=full_path, job_id=ti.triggerer_job.id)
-        new_folder_permissions = int(
-            conf.get("logging", "file_task_handler_new_folder_permissions", fallback="0o775"), 8
-        )
-        self._prepare_log_folder(Path(full_path).parent, new_folder_permissions)
-
-        if not os.path.exists(full_path):
-            open(full_path, "a").close()
-            try:
-                os.chmod(full_path, new_file_permissions)
-            except OSError as e:
-                logger.warning("OSError while changing ownership of the log file. ", e)
-
-        return full_path
 
     @staticmethod
     def _read_from_local(

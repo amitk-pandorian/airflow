@@ -140,11 +140,11 @@ class TestFileTaskLogHandler:
         )
         assert file_handler is not None
 
-        set_context(logger, ti)
-        assert file_handler.handler is not None
-        # We expect set_context generates a file locally.
-        log_filename = file_handler.handler.baseFilename
-
+        # set_context no longer used (see #49659), manually create log file for test
+        log_filename = os.path.join(file_handler.local_base, file_handler._render_filename(ti, ti.try_number))
+        os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+        with open(log_filename, "a"):
+            pass
         assert os.path.isfile(log_filename)
         assert log_filename.endswith("1.log"), log_filename
 
@@ -189,10 +189,11 @@ class TestFileTaskLogHandler:
         )
         assert file_handler is not None
 
-        set_context(logger, ti)
-        assert file_handler.handler is not None
-        # We expect set_context generates a file locally.
-        log_filename = file_handler.handler.baseFilename
+        # set_context no longer used (see #49659), manually create log file for test
+        log_filename = os.path.join(file_handler.local_base, file_handler._render_filename(ti, ti.try_number))
+        os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+        with open(log_filename, "a"):
+            pass
         assert os.path.isfile(log_filename)
         assert log_filename.endswith("0.log"), log_filename
 
@@ -229,10 +230,11 @@ class TestFileTaskLogHandler:
         )
         assert file_handler is not None
 
-        set_context(logger, ti)
-        assert file_handler.handler is not None
-        # We expect set_context generates a file locally.
-        log_filename = file_handler.handler.baseFilename
+        # set_context no longer used (see #49659), manually create log file for test
+        log_filename = os.path.join(file_handler.local_base, file_handler._render_filename(ti, ti.try_number))
+        os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+        with open(log_filename, "a"):
+            pass
         assert os.path.isfile(log_filename)
         assert log_filename.endswith("1.log"), log_filename
 
@@ -311,12 +313,15 @@ class TestFileTaskLogHandler:
             )
             assert file_handler is not None
 
-            set_context(logger, ti)
+            # set_context no longer used (see #49659), manually create log file for test
+            log_filename = os.path.join(
+                file_handler.local_base, file_handler._render_filename(ti, ti.try_number)
+            )
+            os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+            with open(log_filename, "a"):
+                pass
             # clear executor_instances cache
             file_handler.executor_instances = {}
-            assert file_handler.handler is not None
-            # We expect set_context generates a file locally.
-            log_filename = file_handler.handler.baseFilename
             assert os.path.isfile(log_filename)
             assert log_filename.endswith("1.log"), log_filename
 
@@ -359,10 +364,11 @@ class TestFileTaskLogHandler:
         )
         assert file_handler is not None
 
-        set_context(logger, ti)
-        assert file_handler.handler is not None
-        # We expect set_context generates a file locally.
-        log_filename = file_handler.handler.baseFilename
+        # set_context no longer used (see #49659), manually create log file for test
+        log_filename = os.path.join(file_handler.local_base, file_handler._render_filename(ti, ti.try_number))
+        os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+        with open(log_filename, "a"):
+            pass
         assert os.path.isfile(log_filename)
         assert log_filename.endswith("2.log"), log_filename
 
@@ -615,27 +621,6 @@ class TestFileTaskLogHandler:
         assert FileTaskHandler.add_triggerer_suffix(sample, job_id=None) == sample + ".trigger"
         assert FileTaskHandler.add_triggerer_suffix(sample, job_id=123) == sample + ".trigger.123.log"
         assert FileTaskHandler.add_triggerer_suffix(sample, job_id="123") == sample + ".trigger.123.log"
-
-    @pytest.mark.parametrize("is_a_trigger", [True, False])
-    def test_set_context_trigger(self, create_dummy_dag, dag_maker, is_a_trigger, session, tmp_path):
-        create_dummy_dag(dag_id="test_fth", task_id="dummy")
-        (ti,) = dag_maker.create_dagrun(logical_date=pendulum.datetime(2023, 1, 1, tz="UTC")).task_instances
-        assert isinstance(ti, TaskInstance)
-        if is_a_trigger:
-            ti.is_trigger_log_context = True
-            job = Job()
-            t = Trigger("", {})
-            t.triggerer_job = job
-            session.add(t)
-            ti.triggerer = t
-            t.task_instance = ti
-        h = FileTaskHandler(base_log_folder=os.fspath(tmp_path))
-        h.set_context(ti)
-        expected = "dag_id=test_fth/run_id=test/task_id=dummy/attempt=0.log"
-        if is_a_trigger:
-            expected += f".trigger.{job.id}.log"
-        actual = h.handler.baseFilename
-        assert actual == os.fspath(tmp_path / expected)
 
     @skip_if_force_lowest_dependencies_marker
     def test_read_remote_logs_with_real_s3_remote_log_io(self, create_task_instance, session):
